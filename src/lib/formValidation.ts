@@ -99,21 +99,38 @@ export const studentUpdateSchema = studentBaseSchema.extend({
 export type StudentUpdateFormData = z.infer<typeof studentUpdateSchema>;
 
 
-// ========== PARENT ==========
-export const parentSchema = z.object({
-  id: z.string().optional(),
+// ========== PARENT (Create) ==========
+const parentBaseSchema = z.object({
   username: z
     .string()
     .min(3, "Username must be at least 3 characters")
-    .regex(/^[a-zA-Z0-9._]+$/, "Only letters, numbers, dots and underscores"),
-  name: z.string().min(1, "First name is required!"),
-  surname: z.string().min(1, "Surname is required!"),
-  email: z.string().email("Invalid email!").optional().or(z.literal("")),
-  phone: z.string().min(10, "Phone must be at least 10 digits!"),
-  address: z.string().min(1, "Address is required!"),
+    .max(30, "Username too long")
+    .regex(/^[a-zA-Z0-9._]+$/, "Only letters, numbers, dots, underscores"),
+  name: z.string().min(1, "First name is required"),
+  surname: z.string().min(1, "Surname is required"),
+  email: z.string().email("Invalid email").optional().or(z.literal("")),
+  phone: z.string().min(10, "Phone must be at least 10 characters"),  // ✅ Required
+  address: z.string().min(1, "Address is required"),
 });
 
-export type ParentFormData = z.infer<typeof parentSchema>;
+export const parentCreateSchema = parentBaseSchema
+  .extend({
+    password: z.string().min(6, "Password must be at least 6 characters"),
+    confirmPassword: z.string().min(1, "Please confirm the password"),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+
+export type ParentCreateFormData = z.infer<typeof parentCreateSchema>;
+
+// ========== PARENT (Update) ==========
+export const parentUpdateSchema = parentBaseSchema.extend({
+  id: z.string().min(1, "ID is required"),
+});
+
+export type ParentUpdateFormData = z.infer<typeof parentUpdateSchema>;
 
 // ========== CLASS ==========
 export const classSchema = z.object({

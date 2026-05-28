@@ -1,31 +1,39 @@
-"use client";
-
-import { useParams } from "next/navigation";
+// src/app/dashboard/admin/List/Parents/[id]/edit/page.tsx
 import ParentForm from "@/component/forms/ParentForm";
-import { parentsData, studentsData } from "@/lib/mockData";
+import { mapParentToFormData } from "@/lib/data/parent";
+import { prisma } from "@/lib/prisma";
+import Link from "next/link";
+import { notFound } from "next/navigation";
 
-export default function EditParentPage() {
-  const params = useParams();
-  const id = params.id as string;
+export default async function EditParentPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
 
-  const parent = parentsData.find((p) => p.id === id);
+  const parent = await prisma.parent.findUnique({
+    where: { id },
+    include: {
+      students: true,
+    },
+  });
 
   if (!parent) {
-    return (
-      <div className="p-6 text-center">
-        <h1 className="text-xl font-semibold text-gray-900">Parent not found</h1>
-        <p className="text-sm text-gray-500 mt-1">No parent found with ID: {id}</p>
-      </div>
-    );
+    notFound();
   }
 
-  const relatedData = {
-    students: studentsData.map((s) => ({ id: s.id, name: s.name })),
-  };
+  const formData = mapParentToFormData(parent);
 
   return (
-    <div className="p-6">
-      <ParentForm mode="update" data={parent} relatedData={relatedData} />
+    <div className="p-6 flex flex-col gap-4">
+      <Link
+        href="/dashboard/admin/list/parents"
+        className="text-sm text-blue-600 hover:underline w-fit"
+      >
+        ← Back to parents
+      </Link>
+      <ParentForm mode="update" data={formData} />
     </div>
   );
 }

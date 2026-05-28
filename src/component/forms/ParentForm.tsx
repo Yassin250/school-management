@@ -1,61 +1,133 @@
+// src/component/forms/ParentForm.tsx
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import InputField from "@/component/InputField";
-import { parentSchema, type ParentFormData } from "@/lib/formValidation";
+import { createParent, updateParent } from "@/lib/actions/parent";
+import {
+  parentCreateSchema,
+  parentUpdateSchema,
+  type ParentCreateFormData,
+  type ParentUpdateFormData,
+} from "@/lib/formValidation";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 
 type Props = {
   mode: "create" | "update";
-  data?: any;
-  setOpen?: (open: boolean) => void;
-  relatedData?: {
-    students: { id: string; name: string }[];
+  data?: {
+    id?: string;
+    username?: string;
+    name?: string;
+    surname?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
   };
 };
 
-export default function ParentForm({ mode, data, setOpen, relatedData }: Props) {
+type FormValues = ParentCreateFormData | ParentUpdateFormData;
+
+export default function ParentForm({ mode, data }: Props) {
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
 
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<ParentFormData>({
-    resolver: zodResolver(parentSchema),
+  } = useForm<FormValues>({
+    resolver: zodResolver(
+      mode === "create" ? parentCreateSchema : parentUpdateSchema
+    ),
     defaultValues: {
-      name: data?.name || "",
-      email: data?.email || "",
-      phone: data?.phone || "",
-      address: data?.address || "",
-      children: data?.children || [],
+      id: data?.id,
+      username: data?.username ?? "",
+      name: data?.name ?? "",
+      surname: data?.surname ?? "",
+      email: data?.email ?? "",
+      phone: data?.phone ?? "",
+      address: data?.address ?? "",
+      ...(mode === "create" && { password: "", confirmPassword: "" }),
     },
   });
 
-  const onSubmit = async (formData: ParentFormData) => {
-    try {
-      console.log(mode === "create" ? "Creating parent:" : "Updating parent:", formData);
-      await new Promise((r) => setTimeout(r, 500));
+  const onSubmit = async (formData: FormValues) => {
+    if (!data?.id && mode === "update") {
+      toast.error("Parent ID is missing");
+      return;
+    }
 
-      toast.success(`Parent ${mode === "create" ? "created" : "updated"} successfully!`);
-      setOpen?.(false);
-      router.push("/dashboard/admin/list/parents");
-      router.refresh();
+    setIsLoading(true);
+
+    try {
+      const result =
+        mode === "create"
+          ? await createParent(formData as ParentCreateFormData)
+          : await updateParent(data!.id, formData as ParentUpdateFormData);
+
+      if (result.success) {
+        toast.success(
+          `Parent ${mode === "create" ? "created" : "updated"} successfully`
+        );
+        router.push("/dashboard/admin/list/parents");
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "Something went wrong");
+      }
     } catch (error) {
-      toast.error("Something went wrong!");
+      toast.error("An unexpected error occurred");
       console.error(error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const students = relatedData?.students || [];
+  const isSubmittingForm = isSubmitting || isLoading;
 
   return (
-    <form className="flex flex-col gap-8 max-w-3xl mx-auto" onSubmit={handleSubmit(onSubmit)}>
+    <form className="flex flex-col gap-8" onSubmit={handleSubmit(onSubmit)}>
       <h1 className="text-xl font-semibold text-gray-900">
-        {mode === "create" ? "Create a new parent" : "Update the parent"}
+        {mode === "create" ? "Add a new parent" : "Update the parent"}
       </h1>
+
+      {/* Account Information */}
+      <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">
+        Account Information
+      </span>
+      <div className="flex flex-wrap gap-4">
+        <InputField
+          label="Username"
+          name="username"
+          register={register}
+          error={errors.username}
+          placeholder="john.doe"
+        />
+        {mode === "create" && (
+          <>
+            <InputField
+              label="Password"
+              name="password"
+              type="password"
+              register={register}
+              error={"password" in errors ? errors.password : undefined}
+              placeholder="Minimum 6 characters"
+            />
+            <InputField
+              label="Confirm Password"
+              name="confirmPassword"
+              type="password"
+              register={register}
+              error={
+                "confirmPassword" in errors ? errors.confirmPassword : undefined
+              }
+              placeholder="Repeat password"
+            />
+          </>
+        )}
+      </div>
 
       {/* Personal Information */}
       <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">
@@ -63,74 +135,54 @@ export default function ParentForm({ mode, data, setOpen, relatedData }: Props) 
       </span>
       <div className="flex flex-wrap gap-4">
         <InputField
-          label="Full Name"
+          label="First Name"
           name="name"
-          defaultValue={data?.name}
           register={register}
           error={errors.name}
-          placeholder="John Doe Sr."
+          placeholder="John"
+        />
+        <InputField
+          label="Surname"
+          name="surname"
+          register={register}
+          error={errors.surname}
+          placeholder="Doe"
         />
         <InputField
           label="Email"
           name="email"
           type="email"
-          defaultValue={data?.email}
           register={register}
           error={errors.email}
-          placeholder="parent@email.com"
+          placeholder="john.doe@email.com"
         />
         <InputField
           label="Phone"
           name="phone"
-          defaultValue={data?.phone}
           register={register}
           error={errors.phone}
-          placeholder="+1 234-567-8901"
+          placeholder="+250780000000"
         />
         <InputField
           label="Address"
           name="address"
-          defaultValue={data?.address}
           register={register}
           error={errors.address}
-          placeholder="123 Oak Street"
+          placeholder="123 Parent Street, Kigali"
         />
-
-        {data?.id && (
-          <InputField label="Id" name="id" defaultValue={data?.id} register={register} hidden />
-        )}
       </div>
 
-      {/* Children */}
-      <div className="space-y-2">
-        <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">
-          Children
-        </span>
-        <div className="flex flex-col gap-1 w-full">
-          <select
-            multiple
-            {...register("children")}
-            defaultValue={data?.children || []}
-            className="min-h-[120px] p-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {students.map((student) => (
-              <option key={student.id} value={student.name}>
-                {student.name}
-              </option>
-            ))}
-          </select>
-          {errors.children && <p className="text-xs text-red-500">{errors.children.message}</p>}
-          <p className="text-xs text-gray-400">Hold Ctrl/Cmd to select multiple children</p>
-        </div>
-      </div>
-
-      {/* Submit */}
+      {/* Submit Button */}
       <button
         type="submit"
-        disabled={isSubmitting}
-        className="w-full md:w-fit px-8 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+        disabled={isSubmittingForm}
+        className="w-full md:w-fit px-8 py-2.5 bg-emerald-600 text-white text-sm font-medium rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
       >
-        {isSubmitting ? "Saving..." : mode === "create" ? "Create Parent" : "Update Parent"}
+        {isSubmittingForm
+          ? "Saving..."
+          : mode === "create"
+            ? "Add Parent"
+            : "Update Parent"}
       </button>
     </form>
   );
