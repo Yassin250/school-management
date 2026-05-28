@@ -170,13 +170,21 @@ export const examSchema = z.object({
 
 export type ExamFormData = z.infer<typeof examSchema>;
 
-// ========== EVENT ==========
+// ========== EVENT (Create & Update) ==========
 export const eventSchema = z.object({
-  id: z.string().optional(),
+  id: z.coerce.number().int().positive().optional(),
   title: z.string().min(1, "Event title is required!"),
   description: z.string().min(10, "Description must be at least 10 characters!"),
   startTime: z.string().min(1, "Start time is required!"),
   endTime: z.string().min(1, "End time is required!"),
+  classId: z.coerce.number().int().positive().optional().or(z.literal("")).or(z.literal(0)),
+}).refine((data) => {
+  const start = new Date(data.startTime);
+  const end = new Date(data.endTime);
+  return end > start;
+}, {
+  message: "End time must be after start time",
+  path: ["endTime"],
 });
 
 export type EventFormData = z.infer<typeof eventSchema>;

@@ -1,20 +1,38 @@
+// src/component/forms/EventForm.tsx
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import InputField from "@/component/InputField";
-import { eventSchema, type EventFormData } from "@/lib/formValidation";
+import { createEvent, updateEvent } from "@/lib/actions/event";
+import {
+  eventSchema,
+  type EventFormData,
+} from "@/lib/formValidation";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+
+type RelatedData = {
+  classes: { id: number; name: string }[];
+};
 
 type Props = {
   mode: "create" | "update";
-  data?: any;
-  setOpen?: (open: boolean) => void;
+  data?: {
+    id?: number;
+    title?: string;
+    description?: string;
+    startTime?: string;
+    endTime?: string;
+    classId?: number | string;
+  };
+  relatedData: RelatedData;
 };
 
-export default function EventForm({ mode, data, setOpen }: Props) {
+export default function EventForm({ mode, data, relatedData }: Props) {
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
 
   const {
     register,
@@ -23,32 +41,51 @@ export default function EventForm({ mode, data, setOpen }: Props) {
   } = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
     defaultValues: {
-      title: data?.title || "",
-      date: data?.date || "",
-      time: data?.time || "",
-      location: data?.location || "",
-      audience: data?.audience || "All",
-      organizer: data?.organizer || "",
+      id: data?.id,
+      title: data?.title ?? "",
+      description: data?.description ?? "",
+      startTime: data?.startTime ?? "",
+      endTime: data?.endTime ?? "",
+      classId: data?.classId ?? "",
     },
   });
 
   const onSubmit = async (formData: EventFormData) => {
-    try {
-      console.log(mode === "create" ? "Creating event:" : "Updating event:", formData);
-      await new Promise((r) => setTimeout(r, 500));
+    if (!data?.id && mode === "update") {
+      toast.error("Event ID is missing");
+      return;
+    }
 
-      toast.success(`Event ${mode === "create" ? "created" : "updated"} successfully!`);
-      setOpen?.(false);
-      router.push("/dashboard/admin/list/events");
-      router.refresh();
+    setIsLoading(true);
+
+    try {
+      const result =
+        mode === "create"
+          ? await createEvent(formData)
+          : await updateEvent(data!.id!, formData);
+
+      if (result.success) {
+        toast.success(
+          `Event ${mode === "create" ? "created" : "updated"} successfully`
+        );
+        router.push("/dashboard/admin/list/events");
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "Something went wrong");
+      }
     } catch (error) {
-      toast.error("Something went wrong!");
+      toast.error("An unexpected error occurred");
       console.error(error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  const { classes } = relatedData;
+  const isSubmittingForm = isSubmitting || isLoading;
+
   return (
-    <form className="flex flex-col gap-8 max-w-3xl mx-auto" onSubmit={handleSubmit(onSubmit)}>
+    <form className="flex flex-col gap-8" onSubmit={handleSubmit(onSubmit)}>
       <h1 className="text-xl font-semibold text-gray-900">
         {mode === "create" ? "Create a new event" : "Update the event"}
       </h1>
@@ -61,73 +98,78 @@ export default function EventForm({ mode, data, setOpen }: Props) {
         <InputField
           label="Event Title"
           name="title"
-          defaultValue={data?.title}
           register={register}
           error={errors.title}
-          placeholder="Annual Science Fair"
+          placeholder="e.g. Science Fair"
         />
-        <InputField
-          label="Date"
-          name="date"
-          type="date"
-          defaultValue={data?.date}
-          register={register}
-          error={errors.date}
-        />
-        <InputField
-          label="Time"
-          name="time"
-          defaultValue={data?.time}
-          register={register}
-          error={errors.time}
-          placeholder="10:00 AM - 2:00 PM"
-        />
-        <InputField
-          label="Location"
-          name="location"
-          defaultValue={data?.location}
-          register={register}
-          error={errors.location}
-          placeholder="Main Hall"
-        />
-        <InputField
-          label="Organizer"
-          name="organizer"
-          defaultValue={data?.organizer}
-          register={register}
-          error={errors.organizer}
-          placeholder="Ms. Emily Davis"
-        />
-
-        {/* Audience */}
-        <div className="flex flex-col gap-1 w-full md:w-[calc(50%-0.5rem)]">
-          <label className="text-xs font-medium text-gray-500">Audience</label>
-          <select
-            {...register("audience")}
-            defaultValue={data?.audience || "All"}
-            className="h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="All">All</option>
-            <option value="Teachers">Teachers</option>
-            <option value="Students">Students</option>
-            <option value="Parents">Parents</option>
-            <option value="Staff">Staff</option>
-          </select>
-          {errors.audience && <p className="text-xs text-red-500">{errors.audience.message}</p>}
+        <div className="flex flex-col gap-1 w-full">
+          <label className="text-xs font-medium text-gray-500">Description</label>
+          <textarea
+            {...register("description")}
+            rows={3}
+            className="p-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none"
+            placeholder="Describe the event..."
+          />
+          {errors.description && (
+            <p className="text-xs text-red-500">{errors.description.message}</p>
+          )}
         </div>
-
-        {data?.id && (
-          <InputField label="Id" name="id" defaultValue={data?.id} register={register} hidden />
-        )}
       </div>
 
-      {/* Submit */}
+      {/* Schedule */}
+      <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">
+        Schedule
+      </span>
+      <div className="flex flex-wrap gap-4">
+        <InputField
+          label="Start Time"
+          name="startTime"
+          type="datetime-local"
+          register={register}
+          error={errors.startTime}
+        />
+        <InputField
+          label="End Time"
+          name="endTime"
+          type="datetime-local"
+          register={register}
+          error={errors.endTime}
+        />
+      </div>
+
+      {/* Class Assignment */}
+      <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">
+        Audience
+      </span>
+      <div className="flex flex-col gap-1 w-full md:w-[calc(50%-0.5rem)]">
+        <select
+          {...register("classId")}
+          className="h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+        >
+          <option value="">All School</option>
+          {classes.map((cls) => (
+            <option key={cls.id} value={cls.id}>
+              {cls.name}
+            </option>
+          ))}
+        </select>
+        {errors.classId && (
+          <p className="text-xs text-red-500">{errors.classId.message}</p>
+        )}
+        <p className="text-xs text-gray-400">Leave empty for all-school events</p>
+      </div>
+
+      {/* Submit Button */}
       <button
         type="submit"
-        disabled={isSubmitting}
-        className="w-full md:w-fit px-8 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+        disabled={isSubmittingForm}
+        className="w-full md:w-fit px-8 py-2.5 bg-violet-600 text-white text-sm font-medium rounded-xl hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
       >
-        {isSubmitting ? "Saving..." : mode === "create" ? "Create Event" : "Update Event"}
+        {isSubmittingForm
+          ? "Saving..."
+          : mode === "create"
+            ? "Create Event"
+            : "Update Event"}
       </button>
     </form>
   );
