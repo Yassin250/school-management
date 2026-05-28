@@ -132,12 +132,12 @@ export const parentUpdateSchema = parentBaseSchema.extend({
 
 export type ParentUpdateFormData = z.infer<typeof parentUpdateSchema>;
 
-// ========== CLASS ==========
+// ========== CLASS (Create & Update) ==========
 export const classSchema = z.object({
-  id: z.string().optional(),
+  id: z.coerce.number().int().positive().optional(),
   name: z.string().min(1, "Class name is required!"),
-  capacity: z.coerce.number().min(1, "Capacity must be at least 1!"),
-  gradeId: z.string().min(1, "Grade is required!"),
+  capacity: z.coerce.number().int().min(1, "Capacity must be at least 1!"),
+  gradeId: z.coerce.number().int().positive("Grade is required!"),
   supervisorId: z.string().optional().or(z.literal("")),
 });
 
