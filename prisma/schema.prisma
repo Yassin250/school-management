@@ -1,0 +1,349 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// School Management System — Prisma Schema
+// Database: PostgreSQL
+// ORM:      Prisma
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum Role {
+  admin
+  teacher
+  student
+  parent
+}
+
+enum Sex {
+  MALE
+  FEMALE
+}
+
+enum Day {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AUTH — Single account per user regardless of role
+// Used by NextAuth to authenticate. Role determines which dashboard is shown.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  email     String   @unique
+  password  String
+  role      Role
+  img       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN
+// Separate profile table. One admin = one User row + one Admin row.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Admin {
+  id        String   @id // same cuid as User.id
+  username  String   @unique
+  createdAt DateTime @default(now())
+
+  @@map("admins")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// GRADE
+// Represents a year level (Grade 1, Grade 2, … Grade 12)
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Grade {
+  id    Int @id @default(autoincrement())
+  level Int @unique
+
+  classes  Class[]
+  students Student[]
+
+  @@map("grades")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CLASS (section)
+// e.g. "4A", "4B". Belongs to a grade, supervised by one teacher.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Class {
+  id       Int    @id @default(autoincrement())
+  name     String @unique // e.g. "4A"
+  capacity Int
+
+  gradeId Int
+  grade   Grade @relation(fields: [gradeId], references: [id])
+
+  supervisorId String?
+  supervisor   Teacher? @relation("ClassSupervisor", fields: [supervisorId], references: [id])
+
+  students      Student[]
+  lessons       Lesson[]
+  events        Event[]
+  announcements Announcement[]
+
+  @@map("classes")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SUBJECT
+// e.g. Mathematics, English, Biology
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Subject {
+  id   Int    @id @default(autoincrement())
+  name String @unique
+
+  teachers Teacher[] // many-to-many: a teacher can teach multiple subjects
+  lessons  Lesson[]
+
+  @@map("subjects")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEACHER
+// Personal profile for a teacher. Auth via User table (same id).
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Teacher {
+  id        String   @id // same cuid as User.id
+  username  String   @unique
+  name      String
+  surname   String
+  email     String?  @unique
+  phone     String?  @unique
+  address   String
+  img       String?
+  sex       Sex
+  birthday  DateTime
+  createdAt DateTime @default(now())
+
+  subjects          Subject[] // many-to-many
+  lessons           Lesson[]
+  supervisedClasses Class[]   @relation("ClassSupervisor")
+
+  @@map("teachers")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PARENT
+// One parent can have multiple students (children). Auth via User table.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Parent {
+  id        String   @id // same cuid as User.id
+  username  String   @unique
+  name      String
+  surname   String
+  email     String?  @unique
+  phone     String   @unique
+  address   String
+  createdAt DateTime @default(now())
+
+  students Student[]
+
+  @@map("parents")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STUDENT
+// Auth via User table (same id). Belongs to one class, one grade, one parent.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Student {
+  id        String   @id // same cuid as User.id
+  username  String   @unique
+  name      String
+  surname   String
+  email     String?  @unique
+  phone     String?  @unique
+  address   String
+  img       String?
+  sex       Sex
+  birthday  DateTime
+  createdAt DateTime @default(now())
+
+  parentId String
+  parent   Parent @relation(fields: [parentId], references: [id])
+
+  classId Int
+  class   Class @relation(fields: [classId], references: [id])
+
+  gradeId Int
+  grade   Grade @relation(fields: [gradeId], references: [id])
+
+  attendances Attendance[]
+  results     Result[]
+
+  @@map("students")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LESSON
+// A single scheduled class occurrence. Belongs to subject, class, teacher.
+// Drives the timetable (BigCalendar) shown on teacher and student dashboards.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Lesson {
+  id        Int      @id @default(autoincrement())
+  name      String
+  day       Day
+  startTime DateTime
+  endTime   DateTime
+
+  subjectId Int
+  subject   Subject @relation(fields: [subjectId], references: [id])
+
+  classId Int
+  class   Class @relation(fields: [classId], references: [id])
+
+  teacherId String
+  teacher   Teacher @relation(fields: [teacherId], references: [id])
+
+  exams       Exam[]
+  assignments Assignment[]
+  attendances Attendance[]
+
+  @@map("lessons")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EXAM
+// Linked to a lesson. Students get a Result per exam.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Exam {
+  id        Int      @id @default(autoincrement())
+  title     String
+  startTime DateTime
+  endTime   DateTime
+
+  lessonId Int
+  lesson   Lesson @relation(fields: [lessonId], references: [id])
+
+  results Result[]
+
+  @@map("exams")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ASSIGNMENT
+// Linked to a lesson. Students get a Result per assignment.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Assignment {
+  id        Int      @id @default(autoincrement())
+  title     String
+  startDate DateTime
+  dueDate   DateTime
+
+  lessonId Int
+  lesson   Lesson @relation(fields: [lessonId], references: [id])
+
+  results Result[]
+
+  @@map("assignments")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RESULT
+// Stores a student's score for either an exam OR an assignment (not both).
+// The nullable FK pattern enforces the XOR: only one of examId / assignmentId
+// is set on any given row.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Result {
+  id    Int @id @default(autoincrement())
+  score Int
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+
+  examId Int?
+  exam   Exam? @relation(fields: [examId], references: [id])
+
+  assignmentId Int?
+  assignment   Assignment? @relation(fields: [assignmentId], references: [id])
+
+  @@map("results")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ATTENDANCE
+// One row per student per lesson per day.
+// Teachers mark attendance via lesson, student, date, and present flag.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Attendance {
+  id      Int      @id @default(autoincrement())
+  date    DateTime
+  present Boolean
+
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id])
+
+  lessonId Int
+  lesson   Lesson @relation(fields: [lessonId], references: [id])
+
+  @@unique([studentId, lessonId, date]) // prevent duplicate records
+  @@map("attendances")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EVENT
+// School events shown on the EventCalendar on all dashboards.
+// Optional classId: if null, the event is school-wide; if set, class-specific.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Event {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String
+  startTime   DateTime
+  endTime     DateTime
+
+  classId Int?
+  class   Class? @relation(fields: [classId], references: [id])
+
+  @@map("events")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ANNOUNCEMENT
+// Shown in the Announcements widget on all dashboards.
+// Optional classId: if null, school-wide; if set, class-specific.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Announcement {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String
+  date        DateTime
+
+  classId Int?
+  class   Class? @relation(fields: [classId], references: [id])
+
+  @@map("announcements")
+}
