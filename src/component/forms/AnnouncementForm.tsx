@@ -1,20 +1,37 @@
+// src/component/forms/AnnouncementForm.tsx
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import InputField from "@/component/InputField";
-import { announcementSchema, type AnnouncementFormData } from "@/lib/formValidation";
+import { createAnnouncement, updateAnnouncement } from "@/lib/actions/announcement";
+import {
+  announcementSchema,
+  type AnnouncementFormData,
+} from "@/lib/formValidation";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+
+type RelatedData = {
+  classes: { id: number; name: string }[];
+};
 
 type Props = {
   mode: "create" | "update";
-  data?: any;
-  setOpen?: (open: boolean) => void;
+  data?: {
+    id?: number;
+    title?: string;
+    description?: string;
+    date?: string;
+    classId?: number | string;
+  };
+  relatedData: RelatedData;
 };
 
-export default function AnnouncementForm({ mode, data, setOpen }: Props) {
+export default function AnnouncementForm({ mode, data, relatedData }: Props) {
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
 
   const {
     register,
@@ -23,138 +40,123 @@ export default function AnnouncementForm({ mode, data, setOpen }: Props) {
   } = useForm<AnnouncementFormData>({
     resolver: zodResolver(announcementSchema),
     defaultValues: {
-      title: data?.title || "",
-      description: data?.description || "",
-      date: data?.date || new Date().toISOString().split("T")[0],
-      audience: data?.audience || "All",
-      author: data?.author || "",
-      pinned: data?.pinned || false,
-      priority: data?.priority || "Medium",
+      id: data?.id,
+      title: data?.title ?? "",
+      description: data?.description ?? "",
+      date: data?.date ?? new Date().toISOString().split("T")[0],
+      classId: data?.classId ?? "",
     },
   });
 
   const onSubmit = async (formData: AnnouncementFormData) => {
-    try {
-      console.log(mode === "create" ? "Creating announcement:" : "Updating announcement:", formData);
-      await new Promise((r) => setTimeout(r, 500));
+    if (!data?.id && mode === "update") {
+      toast.error("Announcement ID is missing");
+      return;
+    }
 
-      toast.success(`Announcement ${mode === "create" ? "created" : "updated"} successfully!`);
-      setOpen?.(false);
-      router.push("/dashboard/admin/list/announcements");
-      router.refresh();
+    setIsLoading(true);
+
+    try {
+      const result =
+        mode === "create"
+          ? await createAnnouncement(formData)
+          : await updateAnnouncement(data!.id!, formData);
+
+      if (result.success) {
+        toast.success(
+          `Announcement ${mode === "create" ? "posted" : "updated"} successfully`
+        );
+        router.push("/dashboard/admin/list/announcements");
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "Something went wrong");
+      }
     } catch (error) {
-      toast.error("Something went wrong!");
+      toast.error("An unexpected error occurred");
       console.error(error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  const { classes } = relatedData;
+  const isSubmittingForm = isSubmitting || isLoading;
+
   return (
-    <form className="flex flex-col gap-8 max-w-3xl mx-auto" onSubmit={handleSubmit(onSubmit)}>
+    <form className="flex flex-col gap-8" onSubmit={handleSubmit(onSubmit)}>
       <h1 className="text-xl font-semibold text-gray-900">
-        {mode === "create" ? "Create a new announcement" : "Update the announcement"}
+        {mode === "create" ? "Post a new announcement" : "Update the announcement"}
       </h1>
 
-      {/* Announcement Information */}
+      {/* Announcement Content */}
       <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">
-        Announcement Information
+        Content
       </span>
       <div className="flex flex-wrap gap-4">
         <InputField
           label="Title"
           name="title"
-          defaultValue={data?.title}
           register={register}
           error={errors.title}
-          placeholder="Staff Meeting Tomorrow"
+          placeholder="e.g. Mid-Term Exam Schedule"
         />
-
-        {/* Description */}
         <div className="flex flex-col gap-1 w-full">
           <label className="text-xs font-medium text-gray-500">Description</label>
           <textarea
             {...register("description")}
-            defaultValue={data?.description || ""}
             rows={4}
-            placeholder="Enter announcement details..."
-            className={`p-3 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-              errors.description ? "border-red-300" : "border-gray-200"
-            }`}
+            className="p-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none"
+            placeholder="Write your announcement details..."
           />
-          {errors.description && <p className="text-xs text-red-500">{errors.description.message}</p>}
+          {errors.description && (
+            <p className="text-xs text-red-500">{errors.description.message}</p>
+          )}
         </div>
+      </div>
 
+      {/* Settings */}
+      <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">
+        Settings
+      </span>
+      <div className="flex flex-wrap gap-4">
         <InputField
           label="Date"
           name="date"
           type="date"
-          defaultValue={data?.date || new Date().toISOString().split("T")[0]}
           register={register}
           error={errors.date}
         />
-        <InputField
-          label="Author"
-          name="author"
-          defaultValue={data?.author}
-          register={register}
-          error={errors.author}
-          placeholder="Principal Office"
-        />
 
-        {/* Audience */}
         <div className="flex flex-col gap-1 w-full md:w-[calc(50%-0.5rem)]">
           <label className="text-xs font-medium text-gray-500">Audience</label>
           <select
-            {...register("audience")}
-            defaultValue={data?.audience || "All"}
-            className="h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            {...register("classId")}
+            className="h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
           >
-            <option value="All">All</option>
-            <option value="Teachers">Teachers</option>
-            <option value="Students">Students</option>
-            <option value="Parents">Parents</option>
+            <option value="">All School</option>
+            {classes.map((cls) => (
+              <option key={cls.id} value={cls.id}>
+                {cls.name}
+              </option>
+            ))}
           </select>
-          {errors.audience && <p className="text-xs text-red-500">{errors.audience.message}</p>}
+          {errors.classId && (
+            <p className="text-xs text-red-500">{errors.classId.message}</p>
+          )}
+          <p className="text-xs text-gray-400">Leave empty for all-school announcements</p>
         </div>
-
-        {/* Priority */}
-        <div className="flex flex-col gap-1 w-full md:w-[calc(50%-0.5rem)]">
-          <label className="text-xs font-medium text-gray-500">Priority</label>
-          <select
-            {...register("priority")}
-            defaultValue={data?.priority || "Medium"}
-            className="h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="High">High</option>
-            <option value="Medium">Medium</option>
-            <option value="Low">Low</option>
-          </select>
-          {errors.priority && <p className="text-xs text-red-500">{errors.priority.message}</p>}
-        </div>
-
-        {/* Pinned Checkbox */}
-        <div className="flex items-center gap-2 w-full">
-          <input
-            type="checkbox"
-            id="pinned"
-            {...register("pinned")}
-            defaultChecked={data?.pinned || false}
-            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-          />
-          <label htmlFor="pinned" className="text-sm text-gray-700">Pin this announcement</label>
-        </div>
-
-        {data?.id && (
-          <InputField label="Id" name="id" defaultValue={data?.id} register={register} hidden />
-        )}
       </div>
 
-      {/* Submit */}
       <button
         type="submit"
-        disabled={isSubmitting}
-        className="w-full md:w-fit px-8 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+        disabled={isSubmittingForm}
+        className="w-full md:w-fit px-8 py-2.5 bg-sky-600 text-white text-sm font-medium rounded-xl hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
       >
-        {isSubmitting ? "Saving..." : mode === "create" ? "Create Announcement" : "Update Announcement"}
+        {isSubmittingForm
+          ? "Posting..."
+          : mode === "create"
+            ? "Post Announcement"
+            : "Update Announcement"}
       </button>
     </form>
   );

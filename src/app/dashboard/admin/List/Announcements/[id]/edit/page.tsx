@@ -1,27 +1,28 @@
-"use client";
-
-import { useParams } from "next/navigation";
+// src/app/dashboard/admin/List/Announcements/[id]/edit/page.tsx
 import AnnouncementForm from "@/component/forms/AnnouncementForm";
-import { announcementsData } from "@/lib/mockData";
+import { getAnnouncementRelatedData, mapAnnouncementToFormData } from "@/lib/data/announcement";
+import { prisma } from "@/lib/prisma";
+import Link from "next/link";
+import { notFound } from "next/navigation";
 
-export default function EditAnnouncementPage() {
-  const params = useParams();
-  const id = params.id as string;
+export default async function EditAnnouncementPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const annId = parseInt(id);
+  if (isNaN(annId)) notFound();
 
-  const announcement = announcementsData.find((a) => a.id === id);
+  const [announcement, relatedData] = await Promise.all([
+    prisma.announcement.findUnique({ where: { id: annId }, include: { class: true } }),
+    getAnnouncementRelatedData(),
+  ]);
 
-  if (!announcement) {
-    return (
-      <div className="p-6 text-center">
-        <h1 className="text-xl font-semibold text-gray-900">Announcement not found</h1>
-        <p className="text-sm text-gray-500 mt-1">No announcement found with ID: {id}</p>
-      </div>
-    );
-  }
+  if (!announcement) notFound();
 
   return (
-    <div className="p-6">
-      <AnnouncementForm mode="update" data={announcement} />
+    <div className="p-6 flex flex-col gap-4">
+      <Link href="/dashboard/admin/list/announcements" className="text-sm text-blue-600 hover:underline w-fit">
+        ← Back to announcements
+      </Link>
+      <AnnouncementForm mode="update" data={mapAnnouncementToFormData(announcement)} relatedData={relatedData} />
     </div>
   );
 }

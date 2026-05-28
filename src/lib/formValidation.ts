@@ -189,12 +189,13 @@ export const eventSchema = z.object({
 
 export type EventFormData = z.infer<typeof eventSchema>;
 
-// ========== ANNOUNCEMENT ==========
+// ========== ANNOUNCEMENT (Create & Update) ==========
 export const announcementSchema = z.object({
-  id: z.string().optional(),
+  id: z.coerce.number().int().positive().optional(),
   title: z.string().min(1, "Title is required!"),
   description: z.string().min(10, "Description must be at least 10 characters!"),
   date: z.string().min(1, "Date is required!"),
+  classId: z.coerce.number().int().positive().optional().or(z.literal("")).or(z.literal(0)),
 });
 
 export type AnnouncementFormData = z.infer<typeof announcementSchema>;
