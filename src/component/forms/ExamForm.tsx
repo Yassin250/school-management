@@ -1,23 +1,37 @@
+// src/component/forms/ExamForm.tsx
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import InputField from "@/component/InputField";
-import { examSchema, type ExamFormData } from "@/lib/formValidation";
+import { createExam, updateExam } from "@/lib/actions/exam";
+import {
+  examSchema,
+  type ExamFormData,
+} from "@/lib/formValidation";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+
+type RelatedData = {
+  lessons: { id: number; name: string }[];
+};
 
 type Props = {
   mode: "create" | "update";
-  data?: any;
-  setOpen?: (open: boolean) => void;
-  relatedData?: {
-    classes: { id: string; name: string }[];
+  data?: {
+    id?: number;
+    title?: string;
+    startTime?: string;
+    endTime?: string;
+    lessonId?: number;
   };
+  relatedData: RelatedData;
 };
 
-export default function ExamForm({ mode, data, setOpen, relatedData }: Props) {
+export default function ExamForm({ mode, data, relatedData }: Props) {
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
 
   const {
     register,
@@ -26,35 +40,52 @@ export default function ExamForm({ mode, data, setOpen, relatedData }: Props) {
   } = useForm<ExamFormData>({
     resolver: zodResolver(examSchema),
     defaultValues: {
-      name: data?.name || "",
-      type: data?.type || "Mid-Term",
-      startDate: data?.startDate || "",
-      endDate: data?.endDate || "",
-      classes: data?.classes || [],
+      id: data?.id,
+      title: data?.title ?? "",
+      startTime: data?.startTime ?? "",
+      endTime: data?.endTime ?? "",
+      lessonId: data?.lessonId ?? undefined,
     },
   });
 
   const onSubmit = async (formData: ExamFormData) => {
-    try {
-      console.log(mode === "create" ? "Creating exam:" : "Updating exam:", formData);
-      await new Promise((r) => setTimeout(r, 500));
+    if (!data?.id && mode === "update") {
+      toast.error("Exam ID is missing");
+      return;
+    }
 
-      toast.success(`Exam ${mode === "create" ? "created" : "updated"} successfully!`);
-      setOpen?.(false);
-      router.push("/dashboard/admin/list/exams");
-      router.refresh();
+    setIsLoading(true);
+
+    try {
+      const result =
+        mode === "create"
+          ? await createExam(formData)
+          : await updateExam(data!.id!, formData);
+
+      if (result.success) {
+        toast.success(
+          `Exam ${mode === "create" ? "created" : "updated"} successfully`
+        );
+        router.push("/dashboard/admin/list/exams");
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "Something went wrong");
+      }
     } catch (error) {
-      toast.error("Something went wrong!");
+      toast.error("An unexpected error occurred");
       console.error(error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const classes = relatedData?.classes || [];
+  const { lessons } = relatedData;
+  const isSubmittingForm = isSubmitting || isLoading;
 
   return (
-    <form className="flex flex-col gap-8 max-w-3xl mx-auto" onSubmit={handleSubmit(onSubmit)}>
+    <form className="flex flex-col gap-8" onSubmit={handleSubmit(onSubmit)}>
       <h1 className="text-xl font-semibold text-gray-900">
-        {mode === "create" ? "Create a new exam" : "Update the exam"}
+        {mode === "create" ? "Schedule a new exam" : "Update the exam"}
       </h1>
 
       {/* Exam Information */}
@@ -63,82 +94,75 @@ export default function ExamForm({ mode, data, setOpen, relatedData }: Props) {
       </span>
       <div className="flex flex-wrap gap-4">
         <InputField
-          label="Exam Name"
-          name="name"
-          defaultValue={data?.name}
+          label="Exam Title"
+          name="title"
           register={register}
-          error={errors.name}
-          placeholder="Mid-Term Examination"
+          error={errors.title}
+          placeholder="e.g. Mid-Term Mathematics"
         />
-
-        {/* Exam Type */}
-        <div className="flex flex-col gap-1 w-full md:w-[calc(50%-0.5rem)]">
-          <label className="text-xs font-medium text-gray-500">Exam Type</label>
-          <select
-            {...register("type")}
-            defaultValue={data?.type || "Mid-Term"}
-            className="h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="Mid-Term">Mid-Term</option>
-            <option value="Final">Final</option>
-            <option value="Unit Test">Unit Test</option>
-            <option value="Pre-Board">Pre-Board</option>
-          </select>
-          {errors.type && <p className="text-xs text-red-500">{errors.type.message}</p>}
-        </div>
-
-        <InputField
-          label="Start Date"
-          name="startDate"
-          type="date"
-          defaultValue={data?.startDate}
-          register={register}
-          error={errors.startDate}
-        />
-        <InputField
-          label="End Date"
-          name="endDate"
-          type="date"
-          defaultValue={data?.endDate}
-          register={register}
-          error={errors.endDate}
-        />
-
-        {data?.id && (
-          <InputField label="Id" name="id" defaultValue={data?.id} register={register} hidden />
-        )}
       </div>
 
-      {/* Classes */}
-      <div className="space-y-2">
-        <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">
-          Classes
-        </span>
-        <div className="flex flex-col gap-1 w-full">
-          <select
-            multiple
-            {...register("classes")}
-            defaultValue={data?.classes || []}
-            className="min-h-[120px] p-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {classes.map((cls) => (
-              <option key={cls.id} value={cls.name}>
-                {cls.name}
-              </option>
-            ))}
-          </select>
-          {errors.classes && <p className="text-xs text-red-500">{errors.classes.message}</p>}
-          <p className="text-xs text-gray-400">Hold Ctrl/Cmd to select multiple classes</p>
-        </div>
+      {/* Schedule */}
+      <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">
+        Schedule
+      </span>
+      <div className="flex flex-wrap gap-4">
+        <InputField
+          label="Start Time"
+          name="startTime"
+          type="datetime-local"
+          register={register}
+          error={errors.startTime}
+        />
+        <InputField
+          label="End Time"
+          name="endTime"
+          type="datetime-local"
+          register={register}
+          error={errors.endTime}
+        />
       </div>
 
-      {/* Submit */}
+      {/* Lesson Assignment */}
+      {lessons.length > 0 ? (
+        <div className="space-y-2">
+          <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">
+            Linked Lesson
+          </span>
+          <div className="flex flex-col gap-1 w-full md:w-[calc(50%-0.5rem)]">
+            <select
+              {...register("lessonId", { valueAsNumber: true })}
+              className="h-10 px-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500"
+            >
+              <option value="">Select a lesson</option>
+              {lessons.map((lesson) => (
+                <option key={lesson.id} value={lesson.id}>
+                  {lesson.name}
+                </option>
+              ))}
+            </select>
+            {errors.lessonId && (
+              <p className="text-xs text-red-500">{errors.lessonId.message}</p>
+            )}
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-amber-600">
+          No lessons in the database. Create lessons before scheduling exams.
+        </p>
+      )}
+
+      {/* Submit Button */}
       <button
         type="submit"
-        disabled={isSubmitting}
-        className="w-full md:w-fit px-8 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+        disabled={isSubmittingForm || (mode === "create" && lessons.length === 0)}
+        className="w-full md:w-fit px-8 py-2.5 bg-rose-600 text-white text-sm font-medium rounded-xl hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
       >
-        {isSubmitting ? "Saving..." : mode === "create" ? "Create Exam" : "Update Exam"}
+        {isSubmittingForm
+          ? "Saving..."
+          : mode === "create"
+            ? "Schedule Exam"
+            : "Update Exam"}
       </button>
     </form>
   );
