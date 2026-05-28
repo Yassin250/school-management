@@ -143,9 +143,9 @@ export const classSchema = z.object({
 
 export type ClassFormData = z.infer<typeof classSchema>;
 
-// ========== SUBJECT ==========
+// ========== SUBJECT (Create & Update) ==========
 export const subjectSchema = z.object({
-  id: z.string().optional(),
+  id: z.coerce.number().int().positive().optional(),
   name: z.string().min(1, "Subject name is required!"),
   teachers: z.array(z.string()).min(1, "At least one teacher is required!"),
 });

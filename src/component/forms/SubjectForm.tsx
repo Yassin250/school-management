@@ -1,60 +1,86 @@
+// src/component/forms/SubjectForm.tsx
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useForm } from "react-hook-form";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 import InputField from "@/component/InputField";
-import { subjectSchema, type SubjectFormData } from "@/lib/formValidation";
+import { createSubject, updateSubject } from "@/lib/actions/subject";
+import {
+  subjectSchema,
+  type SubjectFormData,
+} from "@/lib/formValidation";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { toast } from "sonner";
+
+type RelatedData = {
+  teachers: { id: string; name: string }[];
+};
 
 type Props = {
   mode: "create" | "update";
-  data?: any;
-  setOpen?: (open: boolean) => void;
-  relatedData?: {
-    teachers: { id: string; name: string }[];
-    classes: { id: string; name: string }[];
+  data?: {
+    id?: number;
+    name?: string;
+    teachers?: string[];
   };
+  relatedData: RelatedData;
 };
 
-export default function SubjectForm({ mode, data, setOpen, relatedData }: Props) {
+export default function SubjectForm({ mode, data, relatedData }: Props) {
   const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
 
   const {
     register,
     handleSubmit,
+    control,
     formState: { errors, isSubmitting },
   } = useForm<SubjectFormData>({
     resolver: zodResolver(subjectSchema),
     defaultValues: {
-      name: data?.name || "",
-      code: data?.code || "",
-      teachers: data?.teachers || [],
-      classes: data?.classes || [],
-      periodsPerWeek: data?.periodsPerWeek || 4,
+      id: data?.id,
+      name: data?.name ?? "",
+      teachers: data?.teachers ?? [],
     },
   });
 
   const onSubmit = async (formData: SubjectFormData) => {
-    try {
-      console.log(mode === "create" ? "Creating subject:" : "Updating subject:", formData);
-      await new Promise((r) => setTimeout(r, 500));
+    if (!data?.id && mode === "update") {
+      toast.error("Subject ID is missing");
+      return;
+    }
 
-      toast.success(`Subject ${mode === "create" ? "created" : "updated"} successfully!`);
-      setOpen?.(false);
-      router.push("/dashboard/admin/list/subjects");
-      router.refresh();
+    setIsLoading(true);
+
+    try {
+      const result =
+        mode === "create"
+          ? await createSubject(formData)
+          : await updateSubject(data!.id!, formData);
+
+      if (result.success) {
+        toast.success(
+          `Subject ${mode === "create" ? "created" : "updated"} successfully`
+        );
+        router.push("/dashboard/admin/list/subjects");
+        router.refresh();
+      } else {
+        toast.error(result.error ?? "Something went wrong");
+      }
     } catch (error) {
-      toast.error("Something went wrong!");
+      toast.error("An unexpected error occurred");
       console.error(error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const teachers = relatedData?.teachers || [];
-  const classes = relatedData?.classes || [];
+  const { teachers } = relatedData;
+  const isSubmittingForm = isSubmitting || isLoading;
 
   return (
-    <form className="flex flex-col gap-8 max-w-3xl mx-auto" onSubmit={handleSubmit(onSubmit)}>
+    <form className="flex flex-col gap-8" onSubmit={handleSubmit(onSubmit)}>
       <h1 className="text-xl font-semibold text-gray-900">
         {mode === "create" ? "Create a new subject" : "Update the subject"}
       </h1>
@@ -67,86 +93,68 @@ export default function SubjectForm({ mode, data, setOpen, relatedData }: Props)
         <InputField
           label="Subject Name"
           name="name"
-          defaultValue={data?.name}
           register={register}
           error={errors.name}
-          placeholder="Mathematics"
+          placeholder="e.g. Mathematics"
         />
-        <InputField
-          label="Subject Code"
-          name="code"
-          defaultValue={data?.code}
-          register={register}
-          error={errors.code}
-          placeholder="MATH-101"
-        />
-        <InputField
-          label="Periods per Week"
-          name="periodsPerWeek"
-          type="number"
-          defaultValue={data?.periodsPerWeek?.toString()}
-          register={register}
-          error={errors.periodsPerWeek}
-          placeholder="4"
-        />
-        {data?.id && (
-          <InputField label="Id" name="id" defaultValue={data?.id} register={register} hidden />
-        )}
       </div>
 
-      {/* Teachers */}
-      <div className="space-y-2">
-        <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">
-          Assigned Teachers
-        </span>
-        <div className="flex flex-col gap-1 w-full">
-          <select
-            multiple
-            {...register("teachers")}
-            defaultValue={data?.teachers || []}
-            className="min-h-[120px] p-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {teachers.map((teacher) => (
-              <option key={teacher.id} value={teacher.name}>
-                {teacher.name}
-              </option>
-            ))}
-          </select>
-          {errors.teachers && <p className="text-xs text-red-500">{errors.teachers.message}</p>}
-          <p className="text-xs text-gray-400">Hold Ctrl/Cmd to select multiple teachers</p>
+      {/* Teachers Assignment */}
+      {teachers.length > 0 ? (
+        <div className="space-y-2">
+          <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">
+            Assigned Teachers
+          </span>
+          <Controller
+            name="teachers"
+            control={control}
+            render={({ field }) => (
+              <div className="flex flex-col gap-1 w-full">
+                <select
+                  multiple
+                  value={field.value ?? []}
+                  onChange={(e) => {
+                    const selected = Array.from(
+                      e.target.selectedOptions,
+                      (o) => o.value
+                    );
+                    field.onChange(selected);
+                  }}
+                  className="min-h-[150px] p-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                >
+                  {teachers.map((teacher) => (
+                    <option key={teacher.id} value={teacher.id}>
+                      {teacher.name}
+                    </option>
+                  ))}
+                </select>
+                {errors.teachers && (
+                  <p className="text-xs text-red-500">{errors.teachers.message}</p>
+                )}
+                <p className="text-xs text-gray-400">
+                  Hold Ctrl/Cmd to select multiple teachers
+                </p>
+              </div>
+            )}
+          />
         </div>
-      </div>
+      ) : (
+        <p className="text-sm text-amber-600">
+          No teachers in the database. Add teachers before creating subjects.
+        </p>
+      )}
 
-      {/* Classes */}
-      <div className="space-y-2">
-        <span className="text-xs text-gray-400 font-medium uppercase tracking-wider">
-          Classes
-        </span>
-        <div className="flex flex-col gap-1 w-full">
-          <select
-            multiple
-            {...register("classes")}
-            defaultValue={data?.classes || []}
-            className="min-h-[120px] p-3 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {classes.map((cls) => (
-              <option key={cls.id} value={cls.name}>
-                {cls.name}
-              </option>
-            ))}
-          </select>
-          {errors.classes && <p className="text-xs text-red-500">{errors.classes.message}</p>}
-          <p className="text-xs text-gray-400">Hold Ctrl/Cmd to select multiple classes</p>
-        </div>
-      </div>
-
-      {/* Submit */}
+      {/* Submit Button */}
       <button
         type="submit"
-        disabled={isSubmitting}
-        className="w-full md:w-fit px-8 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+        disabled={isSubmittingForm || (mode === "create" && teachers.length === 0)}
+        className="w-full md:w-fit px-8 py-2.5 bg-amber-600 text-white text-sm font-medium rounded-xl hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
       >
-        {isSubmitting ? "Saving..." : mode === "create" ? "Create Subject" : "Update Subject"}
+        {isSubmittingForm
+          ? "Saving..."
+          : mode === "create"
+            ? "Create Subject"
+            : "Update Subject"}
       </button>
     </form>
   );

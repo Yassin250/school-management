@@ -1,32 +1,47 @@
-"use client";
-
-import { useParams } from "next/navigation";
+// src/app/dashboard/admin/List/Subjects/[id]/edit/page.tsx
 import SubjectForm from "@/component/forms/SubjectForm";
-import { subjectsData, teachersData, classesData } from "@/lib/mockData";
+import { getSubjectRelatedData, mapSubjectToFormData } from "@/lib/data/subject";
+import { prisma } from "@/lib/prisma";
+import Link from "next/link";
+import { notFound } from "next/navigation";
 
-export default function EditSubjectPage() {
-  const params = useParams();
-  const id = params.id as string;
+export default async function EditSubjectPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const subjectId = parseInt(id);
 
-  const subject = subjectsData.find((s) => s.id === id);
-
-  if (!subject) {
-    return (
-      <div className="p-6 text-center">
-        <h1 className="text-xl font-semibold text-gray-900">Subject not found</h1>
-        <p className="text-sm text-gray-500 mt-1">No subject found with ID: {id}</p>
-      </div>
-    );
+  if (isNaN(subjectId)) {
+    notFound();
   }
 
-  const relatedData = {
-    teachers: teachersData.map((t) => ({ id: t.id, name: t.name })),
-    classes: classesData.map((c) => ({ id: c.id, name: c.name })),
-  };
+  const [subject, relatedData] = await Promise.all([
+    prisma.subject.findUnique({
+      where: { id: subjectId },
+      include: {
+        teachers: true,
+      },
+    }),
+    getSubjectRelatedData(),
+  ]);
+
+  if (!subject) {
+    notFound();
+  }
+
+  const formData = mapSubjectToFormData(subject);
 
   return (
-    <div className="p-6">
-      <SubjectForm mode="update" data={subject} relatedData={relatedData} />
+    <div className="p-6 flex flex-col gap-4">
+      <Link
+        href="/dashboard/admin/list/subjects"
+        className="text-sm text-blue-600 hover:underline w-fit"
+      >
+        ← Back to subjects
+      </Link>
+      <SubjectForm mode="update" data={formData} relatedData={relatedData} />
     </div>
   );
 }
