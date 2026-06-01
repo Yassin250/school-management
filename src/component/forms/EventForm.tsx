@@ -39,14 +39,14 @@ export default function EventForm({ mode, data, relatedData }: Props) {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<EventFormData>({
-    resolver: zodResolver(eventSchema),
+    resolver: zodResolver(eventSchema) as any,
     defaultValues: {
       id: data?.id,
       title: data?.title ?? "",
       description: data?.description ?? "",
       startTime: data?.startTime ?? "",
       endTime: data?.endTime ?? "",
-      classId: data?.classId ?? "",
+      classId: data?.classId ? Number(data.classId) : "",
     },
   });
 

@@ -41,6 +41,7 @@ const menuItems = [
       { icon: Users, label: "Parents", href: "/dashboard/admin/list/parents", visible: ["admin"] },
       { icon: School, label: "Classes", href: "/dashboard/admin/list/classes", visible: ["admin"] },
       { icon: BookOpen, label: "Subjects", href: "/dashboard/admin/list/subjects", visible: ["admin"] },
+      { icon: Clock, label: "Lessons", href: "/dashboard/admin/list/lessons", visible: ["admin"] },
       { icon: ClipboardCheck, label: "Exams", href: "/dashboard/admin/list/exams", visible: ["admin"] },
       { icon: Calendar, label: "Events", href: "/dashboard/admin/list/events", visible: ["admin"] },
       { icon: Bell, label: "Announcements", href: "/dashboard/admin/list/announcements", visible: ["admin"] },

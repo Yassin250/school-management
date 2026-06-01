@@ -10,6 +10,7 @@ const ADMIN_LIST_ROUTE_DIRS: Record<string, string> = {
   exams: "Exams",
   events: "Events",
   announcements: "Announcements",
+  lessons: "Lessons",
 };
 
 const nextConfig: NextConfig = {

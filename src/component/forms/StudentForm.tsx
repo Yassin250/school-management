@@ -54,7 +54,7 @@ export default function StudentForm({ mode, data, relatedData }: Props) {
   } = useForm<FormValues>({
     resolver: zodResolver(
       mode === "create" ? studentCreateSchema : studentUpdateSchema
-    ),
+    ) as any,
     defaultValues: {
       id: data?.id,
       username: data?.username ?? "",
@@ -74,7 +74,8 @@ export default function StudentForm({ mode, data, relatedData }: Props) {
   });
 
   const onSubmit = async (formData: FormValues) => {
-    if (!data?.id && mode === "update") {
+    const studentId = data?.id;
+    if (!studentId && mode === "update") {
       toast.error("Student ID is missing");
       return;
     }
@@ -85,7 +86,7 @@ export default function StudentForm({ mode, data, relatedData }: Props) {
       const result =
         mode === "create"
           ? await createStudent(formData as StudentCreateFormData)
-          : await updateStudent(data!.id, formData as StudentUpdateFormData);
+          : await updateStudent(studentId!, formData as StudentUpdateFormData);
 
       if (result.success) {
         toast.success(

@@ -37,7 +37,7 @@ export default function SubjectForm({ mode, data, relatedData }: Props) {
     control,
     formState: { errors, isSubmitting },
   } = useForm<SubjectFormData>({
-    resolver: zodResolver(subjectSchema),
+    resolver: zodResolver(subjectSchema) as any,
     defaultValues: {
       id: data?.id,
       name: data?.name ?? "",

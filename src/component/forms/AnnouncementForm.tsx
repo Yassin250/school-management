@@ -38,13 +38,13 @@ export default function AnnouncementForm({ mode, data, relatedData }: Props) {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<AnnouncementFormData>({
-    resolver: zodResolver(announcementSchema),
+    resolver: zodResolver(announcementSchema) as any,
     defaultValues: {
       id: data?.id,
       title: data?.title ?? "",
       description: data?.description ?? "",
       date: data?.date ?? new Date().toISOString().split("T")[0],
-      classId: data?.classId ?? "",
+      classId: data?.classId ? Number(data.classId) : "",
     },
   });
 

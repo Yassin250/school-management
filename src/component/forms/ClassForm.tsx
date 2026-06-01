@@ -39,12 +39,12 @@ export default function ClassForm({ mode, data, relatedData }: Props) {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<ClassFormData>({
-    resolver: zodResolver(classSchema),
+    resolver: zodResolver(classSchema) as any,
     defaultValues: {
       id: data?.id,
       name: data?.name ?? "",
       capacity: data?.capacity ?? 30,
-      gradeId: data?.gradeId ?? "",
+      gradeId: data?.gradeId ? Number(data.gradeId) : "" as any,
       supervisorId: data?.supervisorId ?? "",
     },
   });

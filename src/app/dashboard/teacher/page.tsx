@@ -1,9 +1,21 @@
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import Announcements from "@/component/Announcements";
-import BigCalendarContainer from "@/component/BigCalendarContainer";
+import DashboardTimetableContainer from "@/component/DashboardTimetableContainer";
 import EventCalendarContainer from "@/component/EventCalendarContainer";
 import { BookOpen, Users, CalendarCheck, Clock, TrendingUp } from "lucide-react";
+import { Day } from "@/generated/prisma/client";
+import Link from "next/link";
+
+const JS_DAY_TO_ENUM: Record<number, Day | null> = {
+  0: null,
+  1: Day.MONDAY,
+  2: Day.TUESDAY,
+  3: Day.WEDNESDAY,
+  4: Day.THURSDAY,
+  5: Day.FRIDAY,
+  6: null,
+};
 
 const TeacherPage = async ({
   searchParams,
@@ -12,10 +24,18 @@ const TeacherPage = async ({
 }) => {
   const session = await auth();
   const teacherId = session?.user?.id;
+  const { termId } = await searchParams;
 
   if (!teacherId) {
     return <div>Not authenticated</div>;
   }
+
+  const currentTerm = await prisma.term.findFirst({
+    where: { current: true },
+    orderBy: { startDate: "desc" },
+  });
+
+  const todayDay = JS_DAY_TO_ENUM[new Date().getDay()];
 
   // Fetch teacher data with relations
   const teacher = await prisma.teacher.findUnique({
@@ -29,18 +49,15 @@ const TeacherPage = async ({
       },
       lessons: {
         where: {
-          // Get today's lessons
-          startTime: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0)),
-            lte: new Date(new Date().setHours(23, 59, 59, 999)),
-          },
+          ...(todayDay ? { day: todayDay } : { id: -1 }),
+          ...(currentTerm ? { termId: currentTerm.id } : {}),
         },
         include: {
           subject: true,
           class: true,
         },
         orderBy: {
-          startTime: 'asc',
+          startTime: "asc",
         },
       },
     },
@@ -56,21 +73,10 @@ const TeacherPage = async ({
     0
   );
 
-  // Get all lessons for this week to calculate weekly lesson count
-  const startOfWeek = new Date();
-  startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
-  startOfWeek.setHours(0, 0, 0, 0);
-  
-  const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(endOfWeek.getDate() + 7);
-
   const weeklyLessons = await prisma.lesson.count({
     where: {
-      teacherId: teacherId,
-      startTime: {
-        gte: startOfWeek,
-        lt: endOfWeek,
-      },
+      teacherId,
+      ...(currentTerm ? { termId: currentTerm.id } : {}),
     },
   });
 
@@ -105,20 +111,10 @@ const TeacherPage = async ({
   const todayClasses = teacher.lessons.map((lesson) => ({
     subject: lesson.subject?.name || 'Unknown',
     class: lesson.class?.name || 'Unknown',
-    time: `${lesson.startTime.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false 
-    })} - ${lesson.endTime.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
-      minute: '2-digit',
-      hour12: false 
-    })}`,
+    time: `${lesson.startTime.getUTCHours().toString().padStart(2, "0")}:${lesson.startTime.getUTCMinutes().toString().padStart(2, "0")} - ${lesson.endTime.getUTCHours().toString().padStart(2, "0")}:${lesson.endTime.getUTCMinutes().toString().padStart(2, "0")}`,
     room: 'TBD',
     color: getSubjectColor(lesson.subject?.name || ''),
   }));
-
-  const teacherName = `${teacher.name} ${teacher.surname}`;
 
   return (
     <div className="p-4 flex gap-4 flex-col xl:flex-row">
@@ -154,7 +150,7 @@ const TeacherPage = async ({
         {/* Today's Classes */}
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h1 className="text-lg font-semibold text-gray-900">Today's Classes</h1>
+            <h1 className="text-lg font-semibold text-gray-900">Today&apos;s Classes</h1>
             <span className="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full">
               {todayClasses.length} class{todayClasses.length !== 1 ? 'es' : ''}
             </span>
@@ -185,7 +181,7 @@ const TeacherPage = async ({
         {/* Weekly Timetable */}
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex-1">
           <h1 className="text-lg font-semibold text-gray-900 mb-4">Weekly Schedule</h1>
-          <BigCalendarContainer type="teacherId" id={teacherId} />
+          <DashboardTimetableContainer type="teacherId" id={teacherId} searchParams={{ termId }} />
         </div>
       </div>
 
@@ -216,14 +212,20 @@ const TeacherPage = async ({
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
           <div className="grid grid-cols-2 gap-3">
-            <button className="flex flex-col items-center gap-2 p-4 rounded-xl bg-indigo-50 hover:bg-indigo-100 transition-colors">
+            <Link
+              href="/dashboard/teacher/attendance"
+              className="flex flex-col items-center gap-2 p-4 rounded-xl bg-indigo-50 hover:bg-indigo-100 transition-colors"
+            >
               <CalendarCheck className="w-6 h-6 text-indigo-600" />
               <span className="text-xs font-medium text-indigo-700">Mark Attendance</span>
-            </button>
-            <button className="flex flex-col items-center gap-2 p-4 rounded-xl bg-green-50 hover:bg-green-100 transition-colors">
+            </Link>
+            <Link
+              href="/dashboard/teacher/grades"
+              className="flex flex-col items-center gap-2 p-4 rounded-xl bg-green-50 hover:bg-green-100 transition-colors"
+            >
               <BookOpen className="w-6 h-6 text-green-600" />
               <span className="text-xs font-medium text-green-700">Enter Grades</span>
-            </button>
+            </Link>
           </div>
         </div>
         <EventCalendarContainer searchParams={searchParams} />

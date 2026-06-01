@@ -210,7 +210,7 @@ model Lesson {
   id        Int      @id @default(autoincrement())
   name      String
   day       Day
-  startTime DateTime
+  startTime DateTime //Full date+time
   endTime   DateTime
 
   subjectId Int
@@ -225,6 +225,10 @@ model Lesson {
   exams       Exam[]
   assignments Assignment[]
   attendances Attendance[]
+
+  termId Int?
+  term   Term?         @relation(fields: [termId], references: [id], onDelete: Cascade)
+  topics LessonTopic[]
 
   @@map("lessons")
 }
@@ -346,4 +350,37 @@ model Announcement {
   class   Class? @relation(fields: [classId], references: [id])
 
   @@map("announcements")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TERM
+// Represents an academic term with a start and end date.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Term {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  startDate DateTime
+  endDate   DateTime
+  current   Boolean  @default(false)
+
+  lessons Lesson[]
+
+  @@map("terms")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LESSON TOPIC
+// Stores the weekly topic/lesson plan for a lesson.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model LessonTopic {
+  id         Int    @id @default(autoincrement())
+  lessonId   Int
+  lesson     Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  weekNumber Int
+  topic      String
+
+  @@unique([lessonId, weekNumber])
+  @@map("lesson_topics")
 }

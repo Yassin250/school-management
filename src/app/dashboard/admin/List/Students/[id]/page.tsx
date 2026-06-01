@@ -50,7 +50,7 @@ export default async function StudentDetailPage({
 
   // Format recent results
   const recentResults = student.results.map((result) => ({
-    id: result.id,
+    id: String(result.id),
     score: result.score,
     examTitle: result.exam?.title ?? undefined,
     assignmentTitle: result.assignment?.title ?? undefined,

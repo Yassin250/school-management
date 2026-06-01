@@ -19,7 +19,7 @@ export async function createStudent(data: StudentCreateFormData) {
   try {
     const validated = studentCreateSchema.parse(data);
     const phone = validated.phone?.trim() || null;
-    const email = validated.email?.trim() || null;
+    const email = validated.email?.trim() || `${validated.username}@school.com`;
 
     // Check existing user
     const existingUser = await prisma.user.findFirst({
@@ -125,7 +125,7 @@ export async function updateStudent(id: string, data: StudentUpdateFormData) {
   try {
     const validated = studentUpdateSchema.parse(data);
     const phone = validated.phone?.trim() || null;
-    const email = validated.email?.trim() || null;
+    const email = validated.email?.trim() || `${validated.username}@school.com`;
 
     // Check if student exists
     const existing = await prisma.student.findUnique({ where: { id } });
@@ -240,34 +240,23 @@ export async function deleteStudent(id: string) {
   try {
     const student = await prisma.student.findUnique({
       where: { id },
-      include: {
-        _count: {
-          select: {
-            attendances: true,  // ✅ FIXED: was 'attendance'
-            results: true,
-          },
-        },
-      },
     });
 
     if (!student) {
       return { success: false, error: "Student not found" };
     }
 
-    // Check for existing records
-    if (student._count.attendances > 0 || student._count.results > 0) {  // ✅ FIXED: was 'attendance'
-      return {
-        success: false,
-        error:
-          "This student has attendance records or exam results. Remove those records before deleting.",
-      };
-    }
-
     await prisma.$transaction(async (tx) => {
-      // Delete student record
+      // 1. Delete student's attendances
+      await tx.attendance.deleteMany({ where: { studentId: id } });
+
+      // 2. Delete student's results
+      await tx.result.deleteMany({ where: { studentId: id } });
+
+      // 3. Delete student record
       await tx.student.delete({ where: { id } });
 
-      // Delete associated user account
+      // 4. Delete associated user account
       const user = await tx.user.findUnique({ where: { id } });
       if (user) {
         await tx.user.delete({ where: { id } });

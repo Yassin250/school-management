@@ -114,26 +114,23 @@ export async function deleteExam(id: number) {
   try {
     const exam = await prisma.exam.findUnique({
       where: { id },
-      include: {
-        _count: {
-          select: { results: true },
-        },
-      },
     });
 
     if (!exam) {
       return { success: false, error: "Exam not found" };
     }
 
-    // Check if exam has results
-    if (exam._count.results > 0) {
-      return {
-        success: false,
-        error: "This exam has student results. Remove results before deleting.",
-      };
-    }
+    await prisma.$transaction(async (tx) => {
+      // 1. Delete all results for this exam
+      await tx.result.deleteMany({
+        where: { examId: id },
+      });
 
-    await prisma.exam.delete({ where: { id } });
+      // 2. Delete the exam itself
+      await tx.exam.delete({
+        where: { id },
+      });
+    });
 
     revalidatePath(EXAMS_PATH);
     return { success: true };

@@ -41,7 +41,7 @@ export default function ParentForm({ mode, data }: Props) {
   } = useForm<FormValues>({
     resolver: zodResolver(
       mode === "create" ? parentCreateSchema : parentUpdateSchema
-    ),
+    ) as any,
     defaultValues: {
       id: data?.id,
       username: data?.username ?? "",
@@ -55,7 +55,8 @@ export default function ParentForm({ mode, data }: Props) {
   });
 
   const onSubmit = async (formData: FormValues) => {
-    if (!data?.id && mode === "update") {
+    const parentId = data?.id;
+    if (!parentId && mode === "update") {
       toast.error("Parent ID is missing");
       return;
     }
@@ -66,7 +67,7 @@ export default function ParentForm({ mode, data }: Props) {
       const result =
         mode === "create"
           ? await createParent(formData as ParentCreateFormData)
-          : await updateParent(data!.id, formData as ParentUpdateFormData);
+          : await updateParent(parentId!, formData as ParentUpdateFormData);
 
       if (result.success) {
         toast.success(

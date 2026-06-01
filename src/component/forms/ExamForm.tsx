@@ -38,7 +38,7 @@ export default function ExamForm({ mode, data, relatedData }: Props) {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<ExamFormData>({
-    resolver: zodResolver(examSchema),
+    resolver: zodResolver(examSchema) as any,
     defaultValues: {
       id: data?.id,
       title: data?.title ?? "",

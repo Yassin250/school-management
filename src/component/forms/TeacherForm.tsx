@@ -38,7 +38,7 @@ export default function TeacherForm({ mode, data, relatedData }: Props) {
     control,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
-    resolver: zodResolver(mode === "create" ? teacherCreateSchema : teacherUpdateSchema),
+    resolver: zodResolver(mode === "create" ? teacherCreateSchema : teacherUpdateSchema) as any,
     defaultValues: {
       id: data?.id,
       username: data?.username ?? "",

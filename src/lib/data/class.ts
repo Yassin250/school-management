@@ -14,7 +14,7 @@ export async function getClassRelatedData() {
   ]);
 
   return {
-    grades: grades.map((g) => ({ id: g.id, level: g.level })),
+    grades: grades.map((g) => ({ id: String(g.id), level: g.level })),
     teachers: teachers.map((t) => ({
       id: t.id,
       name: `${t.name} ${t.surname}`,
@@ -35,7 +35,7 @@ export function mapClassToFormData(
     id: classItem.id,
     name: classItem.name,
     capacity: classItem.capacity,
-    gradeId: classItem.gradeId,
+    gradeId: String(classItem.gradeId),
     supervisorId: classItem.supervisorId ?? "",
   };
 }

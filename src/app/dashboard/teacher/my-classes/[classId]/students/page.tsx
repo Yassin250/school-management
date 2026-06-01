@@ -1,51 +1,36 @@
-"use client";
-
-import { useParams, useRouter } from "next/navigation";
-import { useSession } from "next-auth/react";
-import { teachersData, classesData, studentsData } from "@/lib/mockData";
+// src/app/dashboard/teacher/my-classes/[classId]/students/page.tsx
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
 import { ArrowLeft, School, Mail, GraduationCap, Users, User, Search } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { redirect } from "next/navigation";
 
-export default function TeacherClassStudentsPage() {
-  const params = useParams();
-  const router = useRouter();
-  const { data: session } = useSession();
-  const classId = params.classId as string;
-  const [searchTerm, setSearchTerm] = useState("");
+export default async function TeacherClassStudentsPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ classId: string }>;
+  searchParams: Promise<{ [key: string]: string | undefined }>;
+}) {
+  const session = await auth();
+  const teacherId = session?.user?.id;
 
-  // Verify this teacher is assigned to this class
-  const teacherId = session?.user?.id || "1";
-  const teacher = teachersData.find((t) => t.id === teacherId);
-
-  if (!teacher?.classes.includes(classId)) {
-    return (
-      <div className="p-6 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4">
-          <School className="w-8 h-8 text-red-400" />
-        </div>
-        <h1 className="text-xl font-semibold text-gray-900">Access Denied</h1>
-        <p className="text-sm text-gray-500 mt-1">You are not assigned to this class.</p>
-        <Link href="/dashboard/teacher/my-classes" className="mt-4 inline-block text-blue-600 hover:underline text-sm">
-          ← Back to My Classes
-        </Link>
-      </div>
-    );
+  if (!teacherId) {
+    redirect("/login");
   }
 
+  const { classId } = await params; // classId is the className e.g. "1B"
+  const resolvedSearchParams = await searchParams;
+  const search = resolvedSearchParams?.search || "";
+
   // Get class info
-  const classInfo = classesData.find((c) => c.name === classId);
-
-  // Get students in this class
-  const classStudents = studentsData.filter((s) => s.class === classId);
-
-  // Search filter
-  const filteredStudents = classStudents.filter(
-    (s) =>
-      s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      s.studentId.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const classInfo = await prisma.class.findUnique({
+    where: { name: classId },
+    include: {
+      grade: true,
+      supervisor: true,
+    },
+  });
 
   if (!classInfo) {
     return (
@@ -58,15 +43,68 @@ export default function TeacherClassStudentsPage() {
     );
   }
 
+  // Verify access: Is the teacher the supervisor OR does the teacher teach any lessons in this class?
+  const isSupervisor = classInfo.supervisorId === teacherId;
+  const teachesClass = await prisma.lesson.findFirst({
+    where: {
+      classId: classInfo.id,
+      teacherId: teacherId,
+    },
+  });
+
+  if (!isSupervisor && !teachesClass) {
+    return (
+      <div className="p-6 text-center">
+        <h1 className="text-xl font-semibold text-gray-900">Access Denied</h1>
+        <p className="text-sm text-gray-500 mt-1">You are not assigned to this class.</p>
+        <Link href="/dashboard/teacher/my-classes" className="mt-4 inline-block text-blue-600 hover:underline text-sm">
+          ← Back to My Classes
+        </Link>
+      </div>
+    );
+  }
+
+  // Get students in this class filtered by search term
+  const students = await prisma.student.findMany({
+    where: {
+      classId: classInfo.id,
+      ...(search ? {
+        OR: [
+          { name: { contains: search, mode: "insensitive" } },
+          { surname: { contains: search, mode: "insensitive" } },
+          { email: { contains: search, mode: "insensitive" } },
+          { id: { contains: search, mode: "insensitive" } },
+        ]
+      } : {}),
+    },
+    include: {
+      attendances: true,
+      results: true,
+    }
+  });
+
+  // Calculate stats for all students in the class
+  const allClassStudentsCount = await prisma.student.count({
+    where: { classId: classInfo.id }
+  });
+  
+  const boysCount = await prisma.student.count({
+    where: { classId: classInfo.id, sex: "MALE" }
+  });
+
+  const girlsCount = await prisma.student.count({
+    where: { classId: classInfo.id, sex: "FEMALE" }
+  });
+
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-6">
       {/* ========== BACK BUTTON ========== */}
       <Link
-        href="/dashboard/teacher/my-classes"
+        href={`/dashboard/teacher/my-classes/${classId}`}
         className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
-        Back to My Classes
+        Back to Class Details
       </Link>
 
       {/* ========== CLASS HEADER ========== */}
@@ -79,20 +117,20 @@ export default function TeacherClassStudentsPage() {
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Class {classInfo.name}</h1>
               <p className="text-sm text-gray-500 mt-1">
-                Grade {classInfo.grade} • Section {classInfo.section} • {classStudents.length} students
+                Grade {classInfo.grade.level} • {allClassStudentsCount} students
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <Link
-              href={`/dashboard/teacher/attendance?class=${classInfo.name}`}
+              href={`/dashboard/teacher/attendance?class=${classId}`}
               className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors"
             >
               Take Attendance
             </Link>
             <Link
-              href={`/dashboard/teacher/grades?class=${classInfo.name}`}
+              href={`/dashboard/teacher/grades?class=${classId}`}
               className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-xl hover:bg-green-700 transition-colors"
             >
               Enter Grades
@@ -105,17 +143,17 @@ export default function TeacherClassStudentsPage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm text-center">
           <Users className="w-5 h-5 text-blue-500 mx-auto mb-2" />
-          <p className="text-xl font-bold text-gray-900">{classStudents.length}</p>
+          <p className="text-xl font-bold text-gray-900">{allClassStudentsCount}</p>
           <p className="text-xs text-gray-500">Total Students</p>
         </div>
         <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm text-center">
           <User className="w-5 h-5 text-green-500 mx-auto mb-2" />
-          <p className="text-xl font-bold text-gray-900">{classStudents.filter(s => s.sex === "MALE").length}</p>
+          <p className="text-xl font-bold text-gray-900">{boysCount}</p>
           <p className="text-xs text-gray-500">Boys</p>
         </div>
         <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm text-center">
           <User className="w-5 h-5 text-pink-500 mx-auto mb-2" />
-          <p className="text-xl font-bold text-gray-900">{classStudents.filter(s => s.sex === "FEMALE").length}</p>
+          <p className="text-xl font-bold text-gray-900">{girlsCount}</p>
           <p className="text-xs text-gray-500">Girls</p>
         </div>
         <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm text-center">
@@ -126,19 +164,19 @@ export default function TeacherClassStudentsPage() {
       </div>
 
       {/* ========== SEARCH ========== */}
-      <div className="relative">
+      <form method="GET" className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
         <input
           type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          name="search"
+          defaultValue={search}
           placeholder="Search students by name, email, or ID..."
           className="w-full h-10 pl-10 pr-4 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-      </div>
+      </form>
 
       {/* ========== EMPTY STATE ========== */}
-      {classStudents.length === 0 && (
+      {allClassStudentsCount === 0 && (
         <div className="bg-white rounded-2xl p-12 border border-gray-100 shadow-sm text-center">
           <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
             <Users className="w-8 h-8 text-gray-400" />
@@ -149,54 +187,77 @@ export default function TeacherClassStudentsPage() {
       )}
 
       {/* ========== STUDENT LIST ========== */}
-      {filteredStudents.length === 0 && searchTerm ? (
+      {students.length === 0 && search ? (
         <div className="bg-white rounded-2xl p-12 border border-gray-100 shadow-sm text-center">
           <h3 className="text-lg font-semibold text-gray-900 mb-1">No results</h3>
-          <p className="text-sm text-gray-500">No students match "{searchTerm}"</p>
+          <p className="text-sm text-gray-500">No students match "{search}"</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="divide-y divide-gray-50">
-            {filteredStudents.map((student) => (
-              <button
-                key={student.id}
-                onClick={() => router.push(`/dashboard/teacher/students/${student.id}`)}
-                className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left"
-              >
-                <div className="flex items-center gap-3">
-                  {/* Avatar */}
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold ${
-                    student.sex === "MALE" ? "bg-blue-500" : "bg-pink-500"
-                  }`}>
-                    {student.name.charAt(0)}
-                  </div>
+            {students.map((student) => {
+              // Calculate attendance rate
+              const totalAtt = student.attendances.length;
+              const presentAtt = student.attendances.filter(a => a.present).length;
+              const attRate = totalAtt > 0 ? Math.round((presentAtt / totalAtt) * 100) : 100;
 
-                  {/* Info */}
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{student.name}</p>
-                    <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5">
-                      <span className="flex items-center gap-1">
-                        <Mail className="w-3 h-3" /> {student.email}
-                      </span>
-                      <span>ID: {student.studentId}</span>
+              // Calculate avg score
+              const totalScore = student.results.reduce((sum, r) => sum + r.score, 0);
+              const totalRes = student.results.length;
+              const avgScore = totalRes > 0 ? Math.round(totalScore / totalRes) : 0;
+
+              const getLetterGrade = (score: number): string => {
+                if (score >= 90) return "A";
+                if (score >= 80) return "B";
+                if (score >= 70) return "C";
+                if (score >= 60) return "D";
+                return "F";
+              };
+              const letterGrade = totalRes > 0 ? getLetterGrade(avgScore) : "-";
+
+              return (
+                <Link
+                  key={student.id}
+                  href={`/dashboard/teacher/students/${student.id}`}
+                  className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left"
+                >
+                  <div className="flex items-center gap-3">
+                    {/* Avatar */}
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold ${
+                      student.sex === "MALE" ? "bg-blue-500" : "bg-pink-500"
+                    }`}>
+                      {student.name.charAt(0).toUpperCase()}
+                    </div>
+
+                    {/* Info */}
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">{student.name} {student.surname}</p>
+                      <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5">
+                        {student.email && (
+                          <span className="flex items-center gap-1">
+                            <Mail className="w-3 h-3" /> {student.email}
+                          </span>
+                        )}
+                        <span>ID: {student.id}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Quick Stats */}
-                <div className="hidden sm:flex items-center gap-4">
-                  <div className="text-center">
-                    <p className="text-sm font-bold text-gray-700">92%</p>
-                    <p className="text-xs text-gray-400">Attendance</p>
+                  {/* Quick Stats */}
+                  <div className="hidden sm:flex items-center gap-4">
+                    <div className="text-center">
+                      <p className="text-sm font-bold text-gray-700">{attRate}%</p>
+                      <p className="text-xs text-gray-400">Attendance</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-bold text-gray-700">{letterGrade}</p>
+                      <p className="text-xs text-gray-400">Grade</p>
+                    </div>
+                    <span className="text-gray-300">→</span>
                   </div>
-                  <div className="text-center">
-                    <p className="text-sm font-bold text-gray-700">B+</p>
-                    <p className="text-xs text-gray-400">Grade</p>
-                  </div>
-                  <span className="text-gray-300">→</span>
-                </div>
-              </button>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         </div>
       )}

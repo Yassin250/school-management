@@ -93,7 +93,7 @@ export type StudentCreateFormData = z.infer<typeof studentCreateSchema>;
 
 // Update schema - uses base without password, adds id
 export const studentUpdateSchema = studentBaseSchema.extend({
-  id: z.string().min(1, "ID is required"),
+  id: z.string().optional(),
 });
 
 export type StudentUpdateFormData = z.infer<typeof studentUpdateSchema>;
@@ -127,7 +127,7 @@ export type ParentCreateFormData = z.infer<typeof parentCreateSchema>;
 
 // ========== PARENT (Update) ==========
 export const parentUpdateSchema = parentBaseSchema.extend({
-  id: z.string().min(1, "ID is required"),
+  id: z.string().optional(),
 });
 
 export type ParentUpdateFormData = z.infer<typeof parentUpdateSchema>;

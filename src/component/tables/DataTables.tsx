@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Pencil, Trash2, Eye } from "lucide-react";
+import { Pencil, Trash2, Eye, LucideIcon } from "lucide-react";
 import SearchInput from "@/component/tables/SearchInput";
 import Pagination from "@/component/tables/Pagination";
 import EmptyState from "@/component/tables/EmptyState";
@@ -23,7 +23,7 @@ interface DataTableProps<T> {
   searchFields?: (keyof T)[];
   pageSize?: number;
   emptyState?: {
-    icon?: React.ComponentType<{ className?: string }>;
+    icon?: LucideIcon;
     title: string;
     description: string;
     actionLabel?: string;

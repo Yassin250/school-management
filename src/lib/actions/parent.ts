@@ -18,7 +18,7 @@ const PARENTS_PATH = "/dashboard/admin/list/parents";
 export async function createParent(data: ParentCreateFormData) {
   try {
     const validated = parentCreateSchema.parse(data);
-    const email = validated.email?.trim() || null;
+    const email = validated.email?.trim() || `${validated.username}@school.com`;
 
     // Check existing user
     const existingUser = await prisma.user.findFirst({
@@ -93,7 +93,7 @@ export async function createParent(data: ParentCreateFormData) {
 export async function updateParent(id: string, data: ParentUpdateFormData) {
   try {
     const validated = parentUpdateSchema.parse(data);
-    const email = validated.email?.trim() || null;
+    const email = validated.email?.trim() || `${validated.username}@school.com`;
 
     // Check if parent exists
     const existing = await prisma.parent.findUnique({ where: { id } });
