@@ -9,7 +9,7 @@ import {
   type StudentCreateFormData,
   type StudentUpdateFormData,
 } from "@/lib/formValidation";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { typedZodResolver } from "@/lib/formResolver";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -43,7 +43,43 @@ type Props = {
 
 type FormValues = StudentCreateFormData | StudentUpdateFormData;
 
-export default function StudentForm({ mode, data, relatedData }: Props) {
+export default function StudentForm(props: Props) {
+  if (props.mode === "create") {
+    return <StudentCreateForm {...props} />;
+  }
+  return <StudentUpdateForm {...props} />;
+}
+
+function StudentCreateForm({ data, relatedData }: Props) {
+  return (
+    <StudentFormInner
+      mode="create"
+      data={data}
+      relatedData={relatedData}
+      schema={studentCreateSchema}
+    />
+  );
+}
+
+function StudentUpdateForm({ data, relatedData }: Props) {
+  return (
+    <StudentFormInner
+      mode="update"
+      data={data}
+      relatedData={relatedData}
+      schema={studentUpdateSchema}
+    />
+  );
+}
+
+function StudentFormInner({
+  mode,
+  data,
+  relatedData,
+  schema,
+}: Props & {
+  schema: typeof studentCreateSchema | typeof studentUpdateSchema;
+}) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -52,9 +88,7 @@ export default function StudentForm({ mode, data, relatedData }: Props) {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
-    resolver: zodResolver(
-      mode === "create" ? studentCreateSchema : studentUpdateSchema
-    ) as any,
+    resolver: typedZodResolver(schema),
     defaultValues: {
       id: data?.id,
       username: data?.username ?? "",

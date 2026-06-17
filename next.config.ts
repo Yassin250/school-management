@@ -1,35 +1,55 @@
 import type { NextConfig } from "next";
 
-/** Lowercase URL segments → folder names under `src/app/dashboard/admin/List/`. */
-const ADMIN_LIST_ROUTE_DIRS: Record<string, string> = {
-  teachers: "Teachers",
-  students: "Students",
-  parents: "Parents",
-  classes: "Classes",
-  subjects: "Subjects",
-  exams: "Exams",
-  events: "Events",
-  announcements: "Announcements",
-  lessons: "Lessons",
-};
+const securityHeaders = [
+  {
+    key: "X-DNS-Prefetch-Control",
+    value: "on",
+  },
+  {
+    key: "Strict-Transport-Security",
+    value: "max-age=63072000; includeSubDomains; preload",
+  },
+  {
+    key: "X-Frame-Options",
+    value: "SAMEORIGIN",
+  },
+  {
+    key: "X-Content-Type-Options",
+    value: "nosniff",
+  },
+  {
+    key: "Referrer-Policy",
+    value: "strict-origin-when-cross-origin",
+  },
+  {
+    key: "Permissions-Policy",
+    value: "camera=(), microphone=(), geolocation=()",
+  },
+  {
+    key: "Content-Security-Policy",
+    value: [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data:",
+      "connect-src 'self' https:",
+      "frame-ancestors 'self'",
+    ].join("; "),
+  },
+];
 
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["192.168.1.65"],
-  // App Router URLs match folder casing. Folders are `List/Teachers`, etc., but links use
-  // lowercase `/dashboard/admin/list/...`. Rewrites bridge that; when you add a page under
-  // `List/<PascalName>/`, add an entry above and restart dev.
-  async rewrites() {
-    return Object.entries(ADMIN_LIST_ROUTE_DIRS).flatMap(([urlSeg, dirName]) => [
+  async headers() {
+    return [
       {
-        source: `/dashboard/admin/list/${urlSeg}`,
-        destination: `/dashboard/admin/List/${dirName}`,
+        source: "/(.*)",
+        headers: securityHeaders,
       },
-      {
-        source: `/dashboard/admin/list/${urlSeg}/:path*`,
-        destination: `/dashboard/admin/List/${dirName}/:path*`,
-      },
-    ]);
+    ];
   },
 };
 
 export default nextConfig;
+

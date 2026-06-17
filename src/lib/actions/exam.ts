@@ -1,21 +1,20 @@
-// src/lib/actions/exam.ts
 "use server";
 
+import { logAudit } from "@/lib/audit";
+import { actionSuccess, type ActionResult } from "@/lib/actions/types";
+import { withPermission } from "@/lib/actions/helpers";
+import { examSchema, type ExamFormData } from "@/lib/formValidation";
 import { prisma } from "@/lib/prisma";
-import {
-  examSchema,
-  type ExamFormData,
-} from "@/lib/formValidation";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 
 const EXAMS_PATH = "/dashboard/admin/list/exams";
 
-export async function createExam(data: ExamFormData) {
-  try {
+export async function createExam(
+  data: ExamFormData
+): Promise<ActionResult<Awaited<ReturnType<typeof prisma.exam.create>>>> {
+  return withPermission("exam:manage", async ({ userId }) => {
     const validated = examSchema.parse(data);
 
-    // Validate lesson exists
     const lesson = await prisma.lesson.findUnique({
       where: { id: validated.lessonId },
     });
@@ -45,28 +44,31 @@ export async function createExam(data: ExamFormData) {
       },
     });
 
+    await logAudit({
+      userId,
+      action: "CREATE",
+      entity: "Exam",
+      entityId: String(exam.id),
+      description: `Created exam ${exam.title}`,
+    });
+
     revalidatePath(EXAMS_PATH);
-    return { success: true, data: exam };
-  } catch (error) {
-    console.error("Create exam error:", error);
-    if (error instanceof z.ZodError) {
-      return { success: false, error: error.issues[0]?.message ?? "Invalid form data" };
-    }
-    return { success: false, error: "Failed to create exam" };
-  }
+    return actionSuccess(exam);
+  }, "Failed to create exam");
 }
 
-export async function updateExam(id: number, data: ExamFormData) {
-  try {
+export async function updateExam(
+  id: number,
+  data: ExamFormData
+): Promise<ActionResult<Awaited<ReturnType<typeof prisma.exam.update>>>> {
+  return withPermission("exam:manage", async ({ userId }) => {
     const validated = examSchema.parse(data);
 
-    // Check if exam exists
     const existing = await prisma.exam.findUnique({ where: { id } });
     if (!existing) {
       return { success: false, error: "Exam not found" };
     }
 
-    // Validate lesson exists
     const lesson = await prisma.lesson.findUnique({
       where: { id: validated.lessonId },
     });
@@ -97,21 +99,23 @@ export async function updateExam(id: number, data: ExamFormData) {
       },
     });
 
+    await logAudit({
+      userId,
+      action: "UPDATE",
+      entity: "Exam",
+      entityId: String(id),
+      description: `Updated exam ${exam.title}`,
+    });
+
     revalidatePath(EXAMS_PATH);
     revalidatePath(`${EXAMS_PATH}/${id}`);
     revalidatePath(`${EXAMS_PATH}/${id}/edit`);
-    return { success: true, data: exam };
-  } catch (error) {
-    console.error("Update exam error:", error);
-    if (error instanceof z.ZodError) {
-      return { success: false, error: error.issues[0]?.message ?? "Invalid form data" };
-    }
-    return { success: false, error: "Failed to update exam" };
-  }
+    return actionSuccess(exam);
+  }, "Failed to update exam");
 }
 
-export async function deleteExam(id: number) {
-  try {
+export async function deleteExam(id: number): Promise<ActionResult<void>> {
+  return withPermission("exam:manage", async ({ userId }) => {
     const exam = await prisma.exam.findUnique({
       where: { id },
     });
@@ -121,24 +125,24 @@ export async function deleteExam(id: number) {
     }
 
     await prisma.$transaction(async (tx) => {
-      // 1. Delete all results for this exam
       await tx.result.deleteMany({
         where: { examId: id },
       });
 
-      // 2. Delete the exam itself
       await tx.exam.delete({
         where: { id },
       });
     });
 
+    await logAudit({
+      userId,
+      action: "DELETE",
+      entity: "Exam",
+      entityId: String(id),
+      description: `Deleted exam ${exam.title}`,
+    });
+
     revalidatePath(EXAMS_PATH);
-    return { success: true };
-  } catch (error) {
-    console.error("Delete exam error:", error);
-    return {
-      success: false,
-      error: "Failed to delete exam. It may have results linked.",
-    };
-  }
+    return actionSuccess();
+  }, "Failed to delete exam");
 }

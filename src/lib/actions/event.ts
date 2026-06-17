@@ -1,21 +1,20 @@
-// src/lib/actions/event.ts
 "use server";
 
+import { logAudit } from "@/lib/audit";
+import { actionSuccess, type ActionResult } from "@/lib/actions/types";
+import { withPermission } from "@/lib/actions/helpers";
+import { eventSchema, type EventFormData } from "@/lib/formValidation";
 import { prisma } from "@/lib/prisma";
-import {
-  eventSchema,
-  type EventFormData,
-} from "@/lib/formValidation";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 
 const EVENTS_PATH = "/dashboard/admin/list/events";
 
-export async function createEvent(data: EventFormData) {
-  try {
+export async function createEvent(
+  data: EventFormData
+): Promise<ActionResult<Awaited<ReturnType<typeof prisma.event.create>>>> {
+  return withPermission("event:manage", async ({ userId }) => {
     const validated = eventSchema.parse(data);
 
-    // Validate class if provided
     if (validated.classId) {
       const classExists = await prisma.class.findUnique({
         where: { id: Number(validated.classId) },
@@ -40,19 +39,24 @@ export async function createEvent(data: EventFormData) {
       },
     });
 
+    await logAudit({
+      userId,
+      action: "CREATE",
+      entity: "Event",
+      entityId: String(event.id),
+      description: `Created event ${event.title}`,
+    });
+
     revalidatePath(EVENTS_PATH);
-    return { success: true, data: event };
-  } catch (error) {
-    console.error("Create event error:", error);
-    if (error instanceof z.ZodError) {
-      return { success: false, error: error.issues[0]?.message ?? "Invalid form data" };
-    }
-    return { success: false, error: "Failed to create event" };
-  }
+    return actionSuccess(event);
+  }, "Failed to create event");
 }
 
-export async function updateEvent(id: number, data: EventFormData) {
-  try {
+export async function updateEvent(
+  id: number,
+  data: EventFormData
+): Promise<ActionResult<Awaited<ReturnType<typeof prisma.event.update>>>> {
+  return withPermission("event:manage", async ({ userId }) => {
     const validated = eventSchema.parse(data);
 
     const existing = await prisma.event.findUnique({ where: { id } });
@@ -85,21 +89,23 @@ export async function updateEvent(id: number, data: EventFormData) {
       },
     });
 
+    await logAudit({
+      userId,
+      action: "UPDATE",
+      entity: "Event",
+      entityId: String(id),
+      description: `Updated event ${event.title}`,
+    });
+
     revalidatePath(EVENTS_PATH);
     revalidatePath(`${EVENTS_PATH}/${id}`);
     revalidatePath(`${EVENTS_PATH}/${id}/edit`);
-    return { success: true, data: event };
-  } catch (error) {
-    console.error("Update event error:", error);
-    if (error instanceof z.ZodError) {
-      return { success: false, error: error.issues[0]?.message ?? "Invalid form data" };
-    }
-    return { success: false, error: "Failed to update event" };
-  }
+    return actionSuccess(event);
+  }, "Failed to update event");
 }
 
-export async function deleteEvent(id: number) {
-  try {
+export async function deleteEvent(id: number): Promise<ActionResult<void>> {
+  return withPermission("event:manage", async ({ userId }) => {
     const event = await prisma.event.findUnique({ where: { id } });
 
     if (!event) {
@@ -108,13 +114,15 @@ export async function deleteEvent(id: number) {
 
     await prisma.event.delete({ where: { id } });
 
+    await logAudit({
+      userId,
+      action: "DELETE",
+      entity: "Event",
+      entityId: String(id),
+      description: `Deleted event ${event.title}`,
+    });
+
     revalidatePath(EVENTS_PATH);
-    return { success: true };
-  } catch (error) {
-    console.error("Delete event error:", error);
-    return {
-      success: false,
-      error: "Failed to delete event.",
-    };
-  }
+    return actionSuccess();
+  }, "Failed to delete event");
 }

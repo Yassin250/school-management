@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Pencil, Trash2, Eye, LucideIcon } from "lucide-react";
 import SearchInput from "@/component/tables/SearchInput";
 import Pagination from "@/component/tables/Pagination";
 import EmptyState from "@/component/tables/EmptyState";
 import TableSkeleton from "@/component/tables/TableSkeleton";
 import ConfirmDelete from "@/component/tables/ConfirmDelete";
+import { useTableQueryState } from "@/component/tables/useTableQueryState";
 
 interface Column<T> {
   header: string;
@@ -36,6 +37,7 @@ interface DataTableProps<T> {
   deleteConfirmTitle?: string;
   deleteConfirmDescription?: string;
   getItemName?: (row: T) => string;
+  syncToUrl?: boolean;
 }
 
 export default function DataTable<T extends { id: string | number }>({
@@ -53,14 +55,28 @@ export default function DataTable<T extends { id: string | number }>({
   deleteConfirmTitle = "Confirm Delete",
   deleteConfirmDescription = "This action cannot be undone.",
   getItemName,
+  syncToUrl = true,
 }: DataTableProps<T>) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [deleteTarget, setDeleteTarget] = useState<T | null>(null);
-  const [sortConfig, setSortConfig] = useState<{
+  const urlState = useTableQueryState(pageSize);
+  const [localSearch, setLocalSearch] = useState("");
+  const [localPage, setLocalPage] = useState(1);
+  const [localSort, setLocalSort] = useState<{
     key: keyof T | null;
     direction: "asc" | "desc";
   }>({ key: null, direction: "asc" });
+
+  const searchQuery = syncToUrl ? urlState.search : localSearch;
+  const currentPage = syncToUrl ? urlState.page : localPage;
+  const sortConfig = syncToUrl
+    ? {
+        key: (urlState.sortKey || null) as keyof T | null,
+        direction: (urlState.sortDir === "desc" ? "desc" : "asc") as
+          | "asc"
+          | "desc",
+      }
+    : localSort;
+
+  const [deleteTarget, setDeleteTarget] = useState<T | null>(null);
 
   // Filtering
   const filteredData = useMemo(() => {
@@ -111,16 +127,32 @@ export default function DataTable<T extends { id: string | number }>({
 
   // Reset page when search changes
   const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    setCurrentPage(1);
+    if (syncToUrl) {
+      urlState.setSearch(query);
+    } else {
+      setLocalSearch(query);
+      setLocalPage(1);
+    }
   };
 
-  // Sort handler
   const handleSort = (key: keyof T) => {
-    setSortConfig((prev) => ({
-      key,
-      direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
-    }));
+    if (syncToUrl) {
+      urlState.handleSort(String(key));
+    } else {
+      setLocalSort((prev) => ({
+        key,
+        direction: prev.key === key && prev.direction === "asc" ? "desc" : "asc",
+      }));
+      setLocalPage(1);
+    }
+  };
+
+  const handlePageChange = (page: number) => {
+    if (syncToUrl) {
+      urlState.setPage(page);
+    } else {
+      setLocalPage(page);
+    }
   };
 
   const hasActions = !!(onEdit || onDelete || onView); // <-- updated condition
@@ -159,6 +191,7 @@ export default function DataTable<T extends { id: string | number }>({
         <SearchInput
           placeholder={searchPlaceholder}
           onSearch={handleSearch}
+          defaultValue={searchQuery}
           className="max-w-md"
         />
       </div>
@@ -280,7 +313,7 @@ export default function DataTable<T extends { id: string | number }>({
             totalPages={totalPages}
             totalItems={filteredData.length}
             pageSize={pageSize}
-            onPageChange={setCurrentPage}
+            onPageChange={handlePageChange}
           />
         </div>
       )}

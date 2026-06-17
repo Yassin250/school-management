@@ -88,13 +88,7 @@ export default function LoginPage() {
             Sign in with Google
           </Button>
 
-          <div className="mt-4 text-sm text-gray-500">
-            <p className="font-medium">Test Accounts:</p>
-            <p>Admin: admin@school.com / admin123</p>
-            <p>Teacher: teacher@school.com / teacher123</p>
-            <p>Student: student@school.com / student123</p>
-            <p>Parent: parent@school.com / parent123</p>
-          </div>
+          
         </CardContent>
       </Card>
     </div>

@@ -7,7 +7,7 @@ import {
   announcementSchema,
   type AnnouncementFormData,
 } from "@/lib/formValidation";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { typedZodResolver } from "@/lib/formResolver";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -38,7 +38,7 @@ export default function AnnouncementForm({ mode, data, relatedData }: Props) {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<AnnouncementFormData>({
-    resolver: zodResolver(announcementSchema) as any,
+    resolver: typedZodResolver(announcementSchema),
     defaultValues: {
       id: data?.id,
       title: data?.title ?? "",

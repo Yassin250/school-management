@@ -22,7 +22,7 @@ export const lessonSchema = z.object({
   id: z.coerce.number().int().positive().optional(),
   name: z.string().min(1, "Lesson name is required"),
   day: z.enum(["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"], {
-    errorMap: () => ({ message: "Please select a valid weekday" }),
+    message: "Please select a valid weekday",
   }),
   startTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "Start time must be HH:MM"),
   endTime: z.string().regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, "End time must be HH:MM"),

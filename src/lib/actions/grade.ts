@@ -1,6 +1,7 @@
-// src/lib/actions/grade.ts
 "use server";
 
+import { actionSuccess, type ActionResult } from "@/lib/actions/types";
+import { withPermission } from "@/lib/actions/helpers";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
@@ -12,16 +13,14 @@ export async function saveGrades({
   examId?: number;
   assignmentId?: number;
   records: { studentId: string; score: number }[];
-}) {
-  try {
+}): Promise<ActionResult<void>> {
+  return withPermission("grade:manage", async () => {
     if (!examId && !assignmentId) {
       return { success: false, error: "Must specify an Exam or Assignment" };
     }
 
-    // Using transaction to upsert results
     await prisma.$transaction(async (tx) => {
       for (const rec of records) {
-        // Find if result already exists for this student and exam/assignment
         const existing = await tx.result.findFirst({
           where: {
             studentId: rec.studentId,
@@ -47,9 +46,6 @@ export async function saveGrades({
     });
 
     revalidatePath("/dashboard/teacher/grades");
-    return { success: true };
-  } catch (error) {
-    console.error("Save grades error:", error);
-    return { success: false, error: "Failed to save grades" };
-  }
+    return actionSuccess();
+  }, "Failed to save grades");
 }

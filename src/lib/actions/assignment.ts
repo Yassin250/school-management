@@ -1,6 +1,7 @@
-// src/lib/actions/assignment.ts
 "use server";
 
+import { actionSuccess, type ActionResult } from "@/lib/actions/types";
+import { withPermission } from "@/lib/actions/helpers";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
@@ -12,8 +13,8 @@ export async function createAssignment({
   title: string;
   lessonId: number;
   dueDateStr: string;
-}) {
-  try {
+}): Promise<ActionResult<Awaited<ReturnType<typeof prisma.assignment.create>>>> {
+  return withPermission("assignment:manage", async () => {
     const assignment = await prisma.assignment.create({
       data: {
         title,
@@ -24,28 +25,23 @@ export async function createAssignment({
     });
 
     revalidatePath("/dashboard/teacher/assignments");
-    return { success: true, data: assignment };
-  } catch (error) {
-    console.error("Create assignment error:", error);
-    return { success: false, error: "Failed to create assignment" };
-  }
+    return actionSuccess(assignment);
+  }, "Failed to create assignment");
 }
 
-export async function deleteAssignment(id: number) {
-  try {
-    // Delete associated results first, if any
-    await prisma.result.deleteMany({
-      where: { assignmentId: id },
-    });
+export async function deleteAssignment(id: number): Promise<ActionResult<void>> {
+  return withPermission("assignment:manage", async () => {
+    await prisma.$transaction(async (tx) => {
+      await tx.result.deleteMany({
+        where: { assignmentId: id },
+      });
 
-    await prisma.assignment.delete({
-      where: { id },
+      await tx.assignment.delete({
+        where: { id },
+      });
     });
 
     revalidatePath("/dashboard/teacher/assignments");
-    return { success: true };
-  } catch (error) {
-    console.error("Delete assignment error:", error);
-    return { success: false, error: "Failed to delete assignment" };
-  }
+    return actionSuccess();
+  }, "Failed to delete assignment");
 }

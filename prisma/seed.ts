@@ -11,6 +11,8 @@ async function main() {
     console.log("🌱 Seeding database...");
 
     // Clean existing data (order matters for FK constraints)
+    await prisma.payment.deleteMany();
+    await prisma.fee.deleteMany();
     await prisma.attendance.deleteMany();
     await prisma.result.deleteMany();
     await prisma.exam.deleteMany();
@@ -420,6 +422,53 @@ async function main() {
     }
     console.log(`✅ ${announcementData.length} announcements created`);
 
+    // ========== FEES & PAYMENTS ==========
+    console.log("💰 Creating fee records...");
+    let feeCount = 0;
+    let paymentCount = 0;
+
+    const feeTypes = [
+        { type: "tuition", label: "Tuition Fee", baseAmount: 500 },
+        { type: "library", label: "Library Fee", baseAmount: 50 },
+        { type: "lab", label: "Lab Fee", baseAmount: 100 },
+        { type: "activity", label: "Activity Fee", baseAmount: 75 },
+        { type: "transport", label: "Transport Fee", baseAmount: 150 },
+    ];
+
+    for (const student of students.slice(0, 30)) {
+        for (const ft of feeTypes) {
+            const isPaid = Math.random() > 0.3;
+            const fee = await prisma.fee.create({
+                data: {
+                    studentId: student.id,
+                    type: ft.type,
+                    amount: ft.baseAmount,
+                    dueDate: new Date("2026-03-30"),
+                    paidAmount: isPaid ? ft.baseAmount : 0,
+                    status: isPaid ? "paid" : "pending",
+                },
+            });
+            feeCount++;
+
+            if (isPaid) {
+                await prisma.payment.create({
+                    data: {
+                        feeId: fee.id,
+                        amount: fee.amount,
+                        method: ["cash", "bank_transfer", "credit_card"][
+                            Math.floor(Math.random() * 3)
+                        ],
+                        reference: `TXN-${Date.now()}-${fee.id}`,
+                        status: "completed",
+                        date: new Date("2026-02-15"),
+                    },
+                });
+                paymentCount++;
+            }
+        }
+    }
+    console.log(`✅ ${feeCount} fees and ${paymentCount} payments created`);
+
     console.log("\n🎉 Database seeded successfully!");
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     console.log("📅 Terms:   Term 1 (current), Term 2, Term 3 - 2026");
@@ -431,52 +480,6 @@ async function main() {
     console.log("📧 Parent:   john.doe@email.com / password123");
     console.log("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
 }
-
-
-// ========== FEES & PAYMENTS ==========
-console.log("💰 Creating fee records...");
-let feeCount = 0;
-let paymentCount = 0;
-
-const feeTypes = [
-  { type: "tuition", label: "Tuition Fee", baseAmount: 500 },
-  { type: "library", label: "Library Fee", baseAmount: 50 },
-  { type: "lab", label: "Lab Fee", baseAmount: 100 },
-  { type: "activity", label: "Activity Fee", baseAmount: 75 },
-  { type: "transport", label: "Transport Fee", baseAmount: 150 },
-];
-
-for (const student of students.slice(0, 30)) {
-  for (const ft of feeTypes) {
-    const fee = await prisma.fee.create({
-      data: {
-        studentId: student.id,
-        type: ft.type,
-        amount: ft.baseAmount,
-        dueDate: new Date("2026-03-30"),
-        paidAmount: Math.random() > 0.3 ? ft.baseAmount : 0,
-        status: Math.random() > 0.3 ? "paid" : "pending",
-      },
-    });
-    feeCount++;
-
-    // Create payment if paid
-    if (fee.status === "paid") {
-      await prisma.payment.create({
-        data: {
-          feeId: fee.id,
-          amount: fee.amount,
-          method: ["cash", "bank_transfer", "credit_card"][Math.floor(Math.random() * 3)],
-          reference: `TXN-${Date.now()}-${fee.id}`,
-          status: "completed",
-          date: new Date("2026-02-15"),
-        },
-      });
-      paymentCount++;
-    }
-  }
-}
-console.log(`✅ ${feeCount} fees and ${paymentCount} payments created`);
 
 main()
     .catch((e) => {

@@ -1,8 +1,32 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
+import { env } from "@/env";
 import { prisma } from "@/lib/prisma";
+import { rateLimit } from "@/lib/rate-limit";
 import { compare } from "bcryptjs";
+import type { Role } from "@/generated/prisma/client";
+
+async function isProfileActive(userId: string, role: Role): Promise<boolean> {
+  switch (role) {
+    case "student": {
+      const profile = await prisma.student.findUnique({ where: { id: userId } });
+      return !!profile;
+    }
+    case "teacher": {
+      const profile = await prisma.teacher.findUnique({ where: { id: userId } });
+      return !!profile;
+    }
+    case "parent": {
+      const profile = await prisma.parent.findUnique({ where: { id: userId } });
+      return !!profile;
+    }
+    case "admin":
+      return true;
+    default:
+      return false;
+  }
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -21,25 +45,40 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
+        const email = credentials.email as string;
+        const limit = rateLimit(`login:${email}`, 5, 15 * 60 * 1000);
+        if (!limit.success) {
+          return null;
+        }
+
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
+          where: { email },
         });
 
         if (!user) {
           return null;
         }
 
-        const isValid = await compare(credentials.password as string, user.password);
+        const isValid = await compare(
+          credentials.password as string,
+          user.password
+        );
 
-        if (isValid) {
-          return {
-            id: user.id,
-            name: user.username,
-            email: user.email,
-            role: user.role,
-          };
+        if (!isValid) {
+          return null;
         }
-        return null;
+
+        const active = await isProfileActive(user.id, user.role);
+        if (!active) {
+          return null;
+        }
+
+        return {
+          id: user.id,
+          name: user.username,
+          email: user.email,
+          role: user.role,
+        };
       },
     }),
   ],
@@ -71,6 +110,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn: "/login",
     error: "/login",
   },
+  secret: env.AUTH_SECRET,
   session: {
     strategy: "jwt",
   },

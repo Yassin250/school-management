@@ -1,6 +1,7 @@
-// src/lib/actions/attendance.ts
 "use server";
 
+import { actionSuccess, type ActionResult } from "@/lib/actions/types";
+import { withPermission } from "@/lib/actions/helpers";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 
@@ -12,12 +13,11 @@ export async function saveAttendance({
   lessonId: number;
   date: string;
   records: { studentId: string; present: boolean }[];
-}) {
-  try {
+}): Promise<ActionResult<void>> {
+  return withPermission("attendance:manage", async () => {
     const attendanceDate = new Date(date);
     attendanceDate.setHours(0, 0, 0, 0);
 
-    // Using transaction to upsert records
     await prisma.$transaction(
       records.map((rec) =>
         prisma.attendance.upsert({
@@ -42,15 +42,12 @@ export async function saveAttendance({
     );
 
     revalidatePath("/dashboard/teacher/attendance");
-    return { success: true };
-  } catch (error) {
-    console.error("Save attendance error:", error);
-    return { success: false, error: "Failed to save attendance" };
-  }
+    return actionSuccess();
+  }, "Failed to save attendance");
 }
 
 export async function getAttendanceHistory(lessonId: number, dateStr: string) {
-  try {
+  return withPermission("attendance:manage", async () => {
     const queryDate = new Date(dateStr);
     queryDate.setHours(0, 0, 0, 0);
 
@@ -64,9 +61,23 @@ export async function getAttendanceHistory(lessonId: number, dateStr: string) {
       },
     });
 
-    return { success: true, data: attendances };
-  } catch (error) {
-    console.error("Get attendance history error:", error);
-    return { success: false, error: "Failed to load history" };
-  }
+    return actionSuccess(attendances);
+  }, "Failed to load history");
+}
+
+/** Mark all students present, then allow toggling individual absences */
+export async function markAllPresent({
+  lessonId,
+  date,
+  studentIds,
+}: {
+  lessonId: number;
+  date: string;
+  studentIds: string[];
+}): Promise<ActionResult<void>> {
+  return saveAttendance({
+    lessonId,
+    date,
+    records: studentIds.map((studentId) => ({ studentId, present: true })),
+  });
 }

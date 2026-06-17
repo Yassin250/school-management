@@ -7,7 +7,7 @@ import {
   eventSchema,
   type EventFormData,
 } from "@/lib/formValidation";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { typedZodResolver } from "@/lib/formResolver";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -39,7 +39,7 @@ export default function EventForm({ mode, data, relatedData }: Props) {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<EventFormData>({
-    resolver: zodResolver(eventSchema) as any,
+    resolver: typedZodResolver(eventSchema),
     defaultValues: {
       id: data?.id,
       title: data?.title ?? "",

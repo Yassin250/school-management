@@ -12,14 +12,13 @@ export default function DashboardLayout({
 }>) {
   return (
     <SessionProvider>
-       <Toaster position="top-right" richColors />
-      <div className="h-screen flex bg-gray-100">
-        
+      <Toaster position="top-right" richColors />
+      <div className="h-screen flex bg-background">
         {/* LEFT SIDEBAR */}
-        <div className="w-[14%] md:w-[8%] lg:w-[16%] xl:w-[14%] bg-white border-r border-gray-200 p-4 flex flex-col">
+        <div className="w-[14%] md:w-[8%] lg:w-[16%] xl:w-[14%] glass-panel p-4 flex flex-col transition-all duration-300">
           <Link
             href="/"
-            className="flex items-center justify-center lg:justify-start gap-2 mb-6"
+            className="flex items-center justify-center lg:justify-start gap-2 mb-6 transition-transform duration-200 hover:-translate-y-px"
           >
             <Image
               src="/1.png"
@@ -27,9 +26,9 @@ export default function DashboardLayout({
               width={32}
               height={32}
               className="w-auto h-auto"
+              priority
             />
-
-            <span className="hidden lg:block font-bold text-gray-800">
+            <span className="hidden lg:block font-bold text-foreground">
               SchoolSMS
             </span>
           </Link>
@@ -38,12 +37,10 @@ export default function DashboardLayout({
         </div>
 
         {/* RIGHT CONTENT */}
-        <div className="w-[86%] md:w-[92%] lg:w-[84%] xl:w-[86%] bg-gray-50 overflow-y-auto flex flex-col min-w-0">
+        <div className="w-[86%] md:w-[92%] lg:w-[84%] xl:w-[86%] overflow-y-auto flex flex-col min-w-0">
           <Navbar />
 
-          <div className="flex-1 p-6 min-w-0">
-            {children}
-          </div>
+          <div className="flex-1 p-6 min-w-0">{children}</div>
         </div>
       </div>
     </SessionProvider>

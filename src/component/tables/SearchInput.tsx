@@ -8,6 +8,7 @@ interface SearchInputProps {
   onSearch: (query: string) => void;
   debounceMs?: number;
   className?: string;
+  defaultValue?: string;
 }
 
 export default function SearchInput({
@@ -15,10 +16,15 @@ export default function SearchInput({
   onSearch,
   debounceMs = 300,
   className = "",
+  defaultValue = "",
 }: SearchInputProps) {
-  const [value, setValue] = useState("");
+  const [value, setValue] = useState(defaultValue);
   const [isTyping, setIsTyping] = useState(false);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    setValue(defaultValue);
+  }, [defaultValue]);
 
   useEffect(() => {
     return () => {
@@ -63,9 +69,7 @@ export default function SearchInput({
         value={value}
         onChange={handleChange}
         placeholder={placeholder}
-        className="w-full h-10 pl-10 pr-10 text-sm rounded-lg border border-gray-200 bg-white 
-                   placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 
-                   focus:border-transparent transition-all"
+        className="input-field pl-10 pr-10"
       />
 
       {/* Clear Button */}

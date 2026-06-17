@@ -7,7 +7,7 @@ import {
   subjectSchema,
   type SubjectFormData,
 } from "@/lib/formValidation";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { typedZodResolver } from "@/lib/formResolver";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -37,7 +37,7 @@ export default function SubjectForm({ mode, data, relatedData }: Props) {
     control,
     formState: { errors, isSubmitting },
   } = useForm<SubjectFormData>({
-    resolver: zodResolver(subjectSchema) as any,
+    resolver: typedZodResolver(subjectSchema),
     defaultValues: {
       id: data?.id,
       name: data?.name ?? "",

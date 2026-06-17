@@ -3,6 +3,7 @@
 import { useSession } from "next-auth/react";
 import { Bell, MessageSquare, Search, Menu } from "lucide-react";
 import { useState } from "react";
+import ThemeToggle from "@/component/ThemeToggle";
 
 export default function Navbar() {
   const { data: session } = useSession();
@@ -24,7 +25,7 @@ export default function Navbar() {
   });
 
   return (
-    <div className="bg-white p-4 border-b border-gray-200">
+    <div className="glass-panel p-4 border-b border-border/60 sticky top-0 z-10">
       <div className="flex items-center justify-between">
         {/* Left: Greeting */}
         <div className="flex items-center gap-4">
@@ -32,10 +33,10 @@ export default function Navbar() {
             <Menu className="w-5 h-5 text-gray-600" />
           </button>
           <div className="hidden sm:block">
-            <h2 className="text-lg font-semibold text-gray-800">
+            <h2 className="text-lg font-semibold text-foreground">
               Good {getGreeting()}, {firstName}
             </h2>
-            <p className="text-sm text-gray-500">{today}</p>
+            <p className="text-sm text-muted-foreground">{today}</p>
           </div>
         </div>
 
@@ -61,6 +62,8 @@ export default function Navbar() {
               <Search className="w-5 h-5 text-gray-600" />
             </button>
           )}
+
+          <ThemeToggle />
 
           {/* Messages */}
           <button className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors">

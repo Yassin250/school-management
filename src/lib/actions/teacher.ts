@@ -1,16 +1,18 @@
 "use server";
 
 import { Role } from "@/generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
+import { actionSuccess, type ActionResult } from "@/lib/actions/types";
+import { withPermission } from "@/lib/actions/helpers";
 import {
   teacherCreateSchema,
   teacherUpdateSchema,
   type TeacherCreateFormData,
   type TeacherUpdateFormData,
 } from "@/lib/formValidation";
+import { prisma, softDeleteRecord } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 
 const TEACHERS_PATH = "/dashboard/admin/list/teachers";
 
@@ -22,8 +24,10 @@ function toClassConnect(classIds: number[]) {
   return classIds.map((id) => ({ id }));
 }
 
-export async function createTeacher(data: TeacherCreateFormData) {
-  try {
+export async function createTeacher(
+  data: TeacherCreateFormData
+): Promise<ActionResult<Awaited<ReturnType<typeof prisma.teacher.create>>>> {
+  return withPermission("teacher:manage", async ({ userId }) => {
     const validated = teacherCreateSchema.parse(data);
     const phone = validated.phone?.trim() || null;
 
@@ -87,19 +91,24 @@ export async function createTeacher(data: TeacherCreateFormData) {
       });
     });
 
+    await logAudit({
+      userId,
+      action: "CREATE",
+      entity: "Teacher",
+      entityId: teacher.id,
+      description: `Created teacher ${teacher.name} ${teacher.surname}`,
+    });
+
     revalidatePath(TEACHERS_PATH);
-    return { success: true, data: teacher };
-  } catch (error) {
-    console.error("Create teacher error:", error);
-    if (error instanceof z.ZodError) {
-      return { success: false, error: error.issues[0]?.message ?? "Invalid form data" };
-    }
-    return { success: false, error: "Failed to create teacher" };
-  }
+    return actionSuccess(teacher);
+  }, "Failed to create teacher");
 }
 
-export async function updateTeacher(id: string, data: TeacherUpdateFormData) {
-  try {
+export async function updateTeacher(
+  id: string,
+  data: TeacherUpdateFormData
+): Promise<ActionResult<Awaited<ReturnType<typeof prisma.teacher.update>>>> {
+  return withPermission("teacher:manage", async ({ userId }) => {
     const validated = teacherUpdateSchema.parse({ ...data, id });
     const phone = validated.phone?.trim() || null;
 
@@ -134,7 +143,10 @@ export async function updateTeacher(id: string, data: TeacherUpdateFormData) {
     });
 
     if (duplicateUser) {
-      return { success: false, error: "Username or email already exists on another account" };
+      return {
+        success: false,
+        error: "Username or email already exists on another account",
+      };
     }
 
     const teacher = await prisma.$transaction(async (tx) => {
@@ -165,21 +177,23 @@ export async function updateTeacher(id: string, data: TeacherUpdateFormData) {
       });
     });
 
+    await logAudit({
+      userId,
+      action: "UPDATE",
+      entity: "Teacher",
+      entityId: id,
+      description: `Updated teacher ${teacher.name} ${teacher.surname}`,
+    });
+
     revalidatePath(TEACHERS_PATH);
     revalidatePath(`${TEACHERS_PATH}/${id}`);
     revalidatePath(`${TEACHERS_PATH}/${id}/edit`);
-    return { success: true, data: teacher };
-  } catch (error) {
-    console.error("Update teacher error:", error);
-    if (error instanceof z.ZodError) {
-      return { success: false, error: error.issues[0]?.message ?? "Invalid form data" };
-    }
-    return { success: false, error: "Failed to update teacher" };
-  }
+    return actionSuccess(teacher);
+  }, "Failed to update teacher");
 }
 
-export async function deleteTeacher(id: string) {
-  try {
+export async function deleteTeacher(id: string): Promise<ActionResult<void>> {
+  return withPermission("teacher:manage", async ({ userId }) => {
     const teacher = await prisma.teacher.findUnique({
       where: { id },
       include: { _count: { select: { lessons: true } } },
@@ -202,19 +216,19 @@ export async function deleteTeacher(id: string) {
         where: { supervisorId: id },
         data: { supervisorId: null },
       });
+    });
 
-      await tx.teacher.delete({ where: { id } });
+    await softDeleteRecord("teacher", id);
 
-      const user = await tx.user.findUnique({ where: { id } });
-      if (user) {
-        await tx.user.delete({ where: { id } });
-      }
+    await logAudit({
+      userId,
+      action: "SOFT_DELETE",
+      entity: "Teacher",
+      entityId: id,
+      description: `Soft-deleted teacher ${teacher.name} ${teacher.surname}`,
     });
 
     revalidatePath(TEACHERS_PATH);
-    return { success: true };
-  } catch (error) {
-    console.error("Delete teacher error:", error);
-    return { success: false, error: "Failed to delete teacher. They may be linked to other records." };
-  }
+    return actionSuccess();
+  }, "Failed to delete teacher");
 }

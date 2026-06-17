@@ -4,10 +4,10 @@
 import InputField from "@/component/InputField";
 import { createClass, updateClass } from "@/lib/actions/class";
 import {
-  classSchema,
-  type ClassFormData,
+  classFormSchema,
+  type ClassFormInput,
 } from "@/lib/formValidation";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { typedZodResolver } from "@/lib/formResolver";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -38,18 +38,18 @@ export default function ClassForm({ mode, data, relatedData }: Props) {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<ClassFormData>({
-    resolver: zodResolver(classSchema) as any,
+  } = useForm<ClassFormInput>({
+    resolver: typedZodResolver(classFormSchema),
     defaultValues: {
       id: data?.id,
       name: data?.name ?? "",
       capacity: data?.capacity ?? 30,
-      gradeId: data?.gradeId ? Number(data.gradeId) : "" as any,
+      gradeId: data?.gradeId ?? "",
       supervisorId: data?.supervisorId ?? "",
     },
   });
 
-  const onSubmit = async (formData: ClassFormData) => {
+  const onSubmit = async (formData: ClassFormInput) => {
     if (!data?.id && mode === "update") {
       toast.error("Class ID is missing");
       return;

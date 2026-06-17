@@ -37,7 +37,7 @@ const teacherBaseSchema = z.object({
   subjects: z
     .array(z.coerce.number().int().positive())
     .min(1, "At least one subject is required!"),
-  classes: z.array(z.coerce.number().int().positive()).default([]),
+  classes: z.array(z.coerce.number().int().positive()),
 });
 
 export const teacherCreateSchema = teacherBaseSchema
@@ -133,12 +133,18 @@ export const parentUpdateSchema = parentBaseSchema.extend({
 export type ParentUpdateFormData = z.infer<typeof parentUpdateSchema>;
 
 // ========== CLASS (Create & Update) ==========
-export const classSchema = z.object({
+export const classFormSchema = z.object({
   id: z.coerce.number().int().positive().optional(),
   name: z.string().min(1, "Class name is required!"),
   capacity: z.coerce.number().int().min(1, "Capacity must be at least 1!"),
+  gradeId: z.string().min(1, "Grade is required!"),
+  supervisorId: z.string(),
+});
+
+export type ClassFormInput = z.infer<typeof classFormSchema>;
+
+export const classSchema = classFormSchema.extend({
   gradeId: z.coerce.number().int().positive("Grade is required!"),
-  supervisorId: z.string().optional().or(z.literal("")),
 });
 
 export type ClassFormData = z.infer<typeof classSchema>;

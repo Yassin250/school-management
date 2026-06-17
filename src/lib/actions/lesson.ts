@@ -1,6 +1,8 @@
 // src/lib/actions/lesson.ts
 "use server";
 
+import { logAudit } from "@/lib/audit";
+import { requirePermission } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/prisma";
 import {
   lessonSchema,
@@ -32,6 +34,9 @@ function revalidateAllTimetables() {
 // ========== LESSON ACTIONS ==========
 
 export async function createLesson(data: LessonFormData) {
+  const authResult = await requirePermission("lesson:manage");
+  if (!authResult.authorized) return authResult.result;
+
   try {
     const validated = lessonSchema.parse(data);
 
@@ -87,6 +92,15 @@ export async function createLesson(data: LessonFormData) {
     });
 
     revalidateAllTimetables();
+
+    await logAudit({
+      userId: authResult.userId,
+      action: "CREATE",
+      entity: "Lesson",
+      entityId: String(newLesson.id),
+      description: `Created lesson ${newLesson.name}`,
+    });
+
     return { success: true, data: newLesson };
   } catch (error) {
     console.error("Create lesson error:", error);
@@ -98,6 +112,9 @@ export async function createLesson(data: LessonFormData) {
 }
 
 export async function updateLesson(id: number, data: LessonFormData) {
+  const authResult = await requirePermission("lesson:manage");
+  if (!authResult.authorized) return authResult.result;
+
   try {
     const validated = lessonSchema.parse(data);
 
@@ -171,6 +188,9 @@ export async function updateLesson(id: number, data: LessonFormData) {
 }
 
 export async function deleteLesson(id: number) {
+  const authResult = await requirePermission("lesson:manage");
+  if (!authResult.authorized) return authResult.result;
+
   try {
     await prisma.lesson.delete({
       where: { id },

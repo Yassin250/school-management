@@ -1,32 +1,31 @@
-// src/lib/actions/parent.ts
 "use server";
 
 import { Role } from "@/generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
+import { actionSuccess, type ActionResult } from "@/lib/actions/types";
+import { withPermission } from "@/lib/actions/helpers";
 import {
   parentCreateSchema,
   parentUpdateSchema,
   type ParentCreateFormData,
   type ParentUpdateFormData,
 } from "@/lib/formValidation";
+import { prisma, softDeleteRecord } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 
 const PARENTS_PATH = "/dashboard/admin/list/parents";
 
-export async function createParent(data: ParentCreateFormData) {
-  try {
+export async function createParent(
+  data: ParentCreateFormData
+): Promise<ActionResult<Awaited<ReturnType<typeof prisma.parent.create>>>> {
+  return withPermission("parent:manage", async ({ userId }) => {
     const validated = parentCreateSchema.parse(data);
     const email = validated.email?.trim() || `${validated.username}@school.com`;
 
-    // Check existing user
     const existingUser = await prisma.user.findFirst({
       where: {
-        OR: [
-          { username: validated.username },
-          ...(email ? [{ email }] : []),
-        ],
+        OR: [{ username: validated.username }, { email }],
       },
     });
 
@@ -34,13 +33,12 @@ export async function createParent(data: ParentCreateFormData) {
       return { success: false, error: "Username or email already exists" };
     }
 
-    // Check existing parent
     const existingParent = await prisma.parent.findFirst({
       where: {
         OR: [
           { username: validated.username },
           { phone: validated.phone },
-          ...(email ? [{ email }] : []),
+          { email },
         ],
       },
     });
@@ -55,59 +53,60 @@ export async function createParent(data: ParentCreateFormData) {
     const hashedPassword = await bcrypt.hash(validated.password, 10);
 
     const parent = await prisma.$transaction(async (tx) => {
-      // Create user account
       const user = await tx.user.create({
         data: {
           username: validated.username,
-          email: email,
+          email,
           password: hashedPassword,
           role: Role.parent,
         },
       });
 
-      // Create parent record
       return tx.parent.create({
         data: {
           id: user.id,
           username: validated.username,
           name: validated.name,
           surname: validated.surname,
-          email: email,
+          email,
           phone: validated.phone,
           address: validated.address,
         },
       });
     });
 
+    await logAudit({
+      userId,
+      action: "CREATE",
+      entity: "Parent",
+      entityId: parent.id,
+      description: `Created parent ${parent.name} ${parent.surname}`,
+    });
+
     revalidatePath(PARENTS_PATH);
-    return { success: true, data: parent };
-  } catch (error) {
-    console.error("Create parent error:", error);
-    if (error instanceof z.ZodError) {
-      return { success: false, error: error.issues[0]?.message ?? "Invalid form data" };
-    }
-    return { success: false, error: "Failed to create parent" };
-  }
+    return actionSuccess(parent);
+  }, "Failed to create parent");
 }
 
-export async function updateParent(id: string, data: ParentUpdateFormData) {
-  try {
+export async function updateParent(
+  id: string,
+  data: ParentUpdateFormData
+): Promise<ActionResult<Awaited<ReturnType<typeof prisma.parent.update>>>> {
+  return withPermission("parent:manage", async ({ userId }) => {
     const validated = parentUpdateSchema.parse(data);
     const email = validated.email?.trim() || `${validated.username}@school.com`;
 
-    // Check if parent exists
     const existing = await prisma.parent.findUnique({ where: { id } });
     if (!existing) {
       return { success: false, error: "Parent not found" };
     }
 
-    // Check for duplicates
     const duplicate = await prisma.parent.findFirst({
       where: {
         OR: [
           { username: validated.username },
           { phone: validated.phone },
-          ...(email ? [{ email }] : []),
+          { email },
         ],
         NOT: { id },
       },
@@ -120,13 +119,9 @@ export async function updateParent(id: string, data: ParentUpdateFormData) {
       };
     }
 
-    // Check user duplicates
     const duplicateUser = await prisma.user.findFirst({
       where: {
-        OR: [
-          { username: validated.username },
-          ...(email ? [{ email }] : []),
-        ],
+        OR: [{ username: validated.username }, { email }],
         NOT: { id },
       },
     });
@@ -139,44 +134,44 @@ export async function updateParent(id: string, data: ParentUpdateFormData) {
     }
 
     const parent = await prisma.$transaction(async (tx) => {
-      // Update user account
       await tx.user.update({
         where: { id },
         data: {
           username: validated.username,
-          email: email,
+          email,
         },
       });
 
-      // Update parent record
       return tx.parent.update({
         where: { id },
         data: {
           username: validated.username,
           name: validated.name,
           surname: validated.surname,
-          email: email,
+          email,
           phone: validated.phone,
           address: validated.address,
         },
       });
     });
 
+    await logAudit({
+      userId,
+      action: "UPDATE",
+      entity: "Parent",
+      entityId: id,
+      description: `Updated parent ${parent.name} ${parent.surname}`,
+    });
+
     revalidatePath(PARENTS_PATH);
     revalidatePath(`${PARENTS_PATH}/${id}`);
     revalidatePath(`${PARENTS_PATH}/${id}/edit`);
-    return { success: true, data: parent };
-  } catch (error) {
-    console.error("Update parent error:", error);
-    if (error instanceof z.ZodError) {
-      return { success: false, error: error.issues[0]?.message ?? "Invalid form data" };
-    }
-    return { success: false, error: "Failed to update parent" };
-  }
+    return actionSuccess(parent);
+  }, "Failed to update parent");
 }
 
-export async function deleteParent(id: string) {
-  try {
+export async function deleteParent(id: string): Promise<ActionResult<void>> {
+  return withPermission("parent:manage", async ({ userId }) => {
     const parent = await prisma.parent.findUnique({
       where: { id },
       include: {
@@ -192,7 +187,6 @@ export async function deleteParent(id: string) {
       return { success: false, error: "Parent not found" };
     }
 
-    // Check if parent has children
     if (parent._count.students > 0) {
       return {
         success: false,
@@ -201,24 +195,17 @@ export async function deleteParent(id: string) {
       };
     }
 
-    await prisma.$transaction(async (tx) => {
-      // Delete parent record
-      await tx.parent.delete({ where: { id } });
+    await softDeleteRecord("parent", id);
 
-      // Delete associated user account
-      const user = await tx.user.findUnique({ where: { id } });
-      if (user) {
-        await tx.user.delete({ where: { id } });
-      }
+    await logAudit({
+      userId,
+      action: "SOFT_DELETE",
+      entity: "Parent",
+      entityId: id,
+      description: `Soft-deleted parent ${parent.name} ${parent.surname}`,
     });
 
     revalidatePath(PARENTS_PATH);
-    return { success: true };
-  } catch (error) {
-    console.error("Delete parent error:", error);
-    return {
-      success: false,
-      error: "Failed to delete parent. They may have children enrolled.",
-    };
-  }
+    return actionSuccess();
+  }, "Failed to delete parent");
 }

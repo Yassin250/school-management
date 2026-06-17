@@ -21,6 +21,12 @@ export const PERIODS = [
   { time: "15:00 - 15:45", label: "Period 7" },
 ] as const;
 
+export type PeriodLabel = (typeof PERIODS)[number]["label"];
+
+export function isBreakPeriod(label: PeriodLabel): boolean {
+  return label === "Break";
+}
+
 export type TimetableEntry = {
   id: number;
   subject: string;
@@ -153,7 +159,7 @@ export default function TimetableClient({
         const lessons = countLessons(timetable, day);
         return lessons > best.lessons ? { day, lessons } : best;
       },
-      { day: DAYS[0], lessons: 0 }
+      { day: DAYS[0], lessons: 0 } as { day: string; lessons: number }
     );
   }, [timetable]);
 
@@ -317,7 +323,7 @@ export default function TimetableClient({
             </div>
 
             {PERIODS.map((period) => {
-              const isBreak = period.label === "Break" || period.label === "Lunch Break";
+              const isBreak = isBreakPeriod(period.label);
               return (
                 <div key={period.time} className="grid grid-cols-[140px_repeat(5,minmax(140px,1fr))] border-b border-slate-100 last:border-b-0">
                   <div className={`px-4 py-3 flex flex-col justify-center ${isBreak ? "bg-amber-50/40" : "bg-white"}`}>
@@ -352,7 +358,7 @@ export default function TimetableClient({
         <div className="divide-y divide-slate-100 lg:hidden">
           {PERIODS.map((period) => {
             const entry = timetable[selectedDay]?.[period.time];
-            const isBreak = period.label === "Break" || period.label === "Lunch Break";
+            const isBreak = isBreakPeriod(period.label);
             return (
               <div key={period.time} className={`grid grid-cols-[90px_1fr] gap-3 p-4 items-center ${isBreak ? "bg-amber-50/20" : ""}`}>
                 <div>

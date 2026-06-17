@@ -1,33 +1,36 @@
-// src/lib/actions/student.ts
 "use server";
 
 import { Role } from "@/generated/prisma/client";
-import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
+import {
+  actionSuccess,
+  type ActionResult,
+} from "@/lib/actions/types";
+import { withPermission } from "@/lib/actions/helpers";
 import {
   studentCreateSchema,
   studentUpdateSchema,
   type StudentCreateFormData,
   type StudentUpdateFormData,
 } from "@/lib/formValidation";
+import { prisma, softDeleteRecord } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 
 const STUDENTS_PATH = "/dashboard/admin/list/students";
 
-export async function createStudent(data: StudentCreateFormData) {
-  try {
+export async function createStudent(
+  data: StudentCreateFormData
+): Promise<ActionResult<Awaited<ReturnType<typeof prisma.student.create>>>> {
+  return withPermission("student:manage", async ({ userId }) => {
     const validated = studentCreateSchema.parse(data);
     const phone = validated.phone?.trim() || null;
-    const email = validated.email?.trim() || `${validated.username}@school.com`;
+    const email =
+      validated.email?.trim() || `${validated.username}@school.com`;
 
-    // Check existing user
     const existingUser = await prisma.user.findFirst({
       where: {
-        OR: [
-          { username: validated.username },
-          ...(email ? [{ email }] : []),
-        ],
+        OR: [{ username: validated.username }, { email }],
       },
     });
 
@@ -35,12 +38,11 @@ export async function createStudent(data: StudentCreateFormData) {
       return { success: false, error: "Username or email already exists" };
     }
 
-    // Check existing student
     const existingStudent = await prisma.student.findFirst({
       where: {
         OR: [
           { username: validated.username },
-          ...(email ? [{ email }] : []),
+          { email },
           ...(phone ? [{ phone }] : []),
         ],
       },
@@ -53,7 +55,6 @@ export async function createStudent(data: StudentCreateFormData) {
       };
     }
 
-    // Validate parent exists
     const parent = await prisma.parent.findUnique({
       where: { id: validated.parentId },
     });
@@ -62,7 +63,6 @@ export async function createStudent(data: StudentCreateFormData) {
       return { success: false, error: "Selected parent does not exist" };
     }
 
-    // Validate class exists
     const classExists = await prisma.class.findUnique({
       where: { id: parseInt(validated.classId) },
     });
@@ -74,25 +74,23 @@ export async function createStudent(data: StudentCreateFormData) {
     const hashedPassword = await bcrypt.hash(validated.password, 10);
 
     const student = await prisma.$transaction(async (tx) => {
-      // Create user account
       const user = await tx.user.create({
         data: {
           username: validated.username,
-          email: email,
+          email,
           password: hashedPassword,
           role: Role.student,
           img: validated.img || null,
         },
       });
 
-      // Create student record
       return tx.student.create({
         data: {
           id: user.id,
           username: validated.username,
           name: validated.name,
           surname: validated.surname,
-          email: email,
+          email,
           phone,
           address: validated.address,
           sex: validated.sex,
@@ -110,35 +108,39 @@ export async function createStudent(data: StudentCreateFormData) {
       });
     });
 
+    await logAudit({
+      userId,
+      action: "CREATE",
+      entity: "Student",
+      entityId: student.id,
+      description: `Created student ${student.name} ${student.surname}`,
+    });
+
     revalidatePath(STUDENTS_PATH);
-    return { success: true, data: student };
-  } catch (error) {
-    console.error("Create student error:", error);
-    if (error instanceof z.ZodError) {
-      return { success: false, error: error.issues[0]?.message ?? "Invalid form data" };
-    }
-    return { success: false, error: "Failed to create student" };
-  }
+    return actionSuccess(student);
+  }, "Failed to create student");
 }
 
-export async function updateStudent(id: string, data: StudentUpdateFormData) {
-  try {
+export async function updateStudent(
+  id: string,
+  data: StudentUpdateFormData
+): Promise<ActionResult<Awaited<ReturnType<typeof prisma.student.update>>>> {
+  return withPermission("student:manage", async ({ userId }) => {
     const validated = studentUpdateSchema.parse(data);
     const phone = validated.phone?.trim() || null;
-    const email = validated.email?.trim() || `${validated.username}@school.com`;
+    const email =
+      validated.email?.trim() || `${validated.username}@school.com`;
 
-    // Check if student exists
     const existing = await prisma.student.findUnique({ where: { id } });
     if (!existing) {
       return { success: false, error: "Student not found" };
     }
 
-    // Check for duplicates
     const duplicate = await prisma.student.findFirst({
       where: {
         OR: [
           { username: validated.username },
-          ...(email ? [{ email }] : []),
+          { email },
           ...(phone ? [{ phone }] : []),
         ],
         NOT: { id },
@@ -152,13 +154,9 @@ export async function updateStudent(id: string, data: StudentUpdateFormData) {
       };
     }
 
-    // Check user duplicates
     const duplicateUser = await prisma.user.findFirst({
       where: {
-        OR: [
-          { username: validated.username },
-          ...(email ? [{ email }] : []),
-        ],
+        OR: [{ username: validated.username }, { email }],
         NOT: { id },
       },
     });
@@ -170,7 +168,6 @@ export async function updateStudent(id: string, data: StudentUpdateFormData) {
       };
     }
 
-    // Validate relations
     const parent = await prisma.parent.findUnique({
       where: { id: validated.parentId },
     });
@@ -188,24 +185,22 @@ export async function updateStudent(id: string, data: StudentUpdateFormData) {
     }
 
     const student = await prisma.$transaction(async (tx) => {
-      // Update user account
       await tx.user.update({
         where: { id },
         data: {
           username: validated.username,
-          email: email,
+          email,
           img: validated.img || null,
         },
       });
 
-      // Update student record
       return tx.student.update({
         where: { id },
         data: {
           username: validated.username,
           name: validated.name,
           surname: validated.surname,
-          email: email,
+          email,
           phone,
           address: validated.address,
           sex: validated.sex,
@@ -223,21 +218,23 @@ export async function updateStudent(id: string, data: StudentUpdateFormData) {
       });
     });
 
+    await logAudit({
+      userId,
+      action: "UPDATE",
+      entity: "Student",
+      entityId: id,
+      description: `Updated student ${student.name} ${student.surname}`,
+    });
+
     revalidatePath(STUDENTS_PATH);
     revalidatePath(`${STUDENTS_PATH}/${id}`);
     revalidatePath(`${STUDENTS_PATH}/${id}/edit`);
-    return { success: true, data: student };
-  } catch (error) {
-    console.error("Update student error:", error);
-    if (error instanceof z.ZodError) {
-      return { success: false, error: error.issues[0]?.message ?? "Invalid form data" };
-    }
-    return { success: false, error: "Failed to update student" };
-  }
+    return actionSuccess(student);
+  }, "Failed to update student");
 }
 
-export async function deleteStudent(id: string) {
-  try {
+export async function deleteStudent(id: string): Promise<ActionResult<void>> {
+  return withPermission("student:manage", async ({ userId }) => {
     const student = await prisma.student.findUnique({
       where: { id },
     });
@@ -246,32 +243,19 @@ export async function deleteStudent(id: string) {
       return { success: false, error: "Student not found" };
     }
 
-    await prisma.$transaction(async (tx) => {
-      // 1. Delete student's attendances
-      await tx.attendance.deleteMany({ where: { studentId: id } });
+    await softDeleteRecord("student", id);
 
-      // 2. Delete student's results
-      await tx.result.deleteMany({ where: { studentId: id } });
-
-      // 3. Delete student record
-      await tx.student.delete({ where: { id } });
-
-      // 4. Delete associated user account
-      const user = await tx.user.findUnique({ where: { id } });
-      if (user) {
-        await tx.user.delete({ where: { id } });
-      }
+    await logAudit({
+      userId,
+      action: "SOFT_DELETE",
+      entity: "Student",
+      entityId: id,
+      description: `Soft-deleted student ${student.name} ${student.surname}`,
     });
 
     revalidatePath(STUDENTS_PATH);
-    return { success: true };
-  } catch (error) {
-    console.error("Delete student error:", error);
-    return {
-      success: false,
-      error: "Failed to delete student. They may be linked to other records.",
-    };
-  }
+    return actionSuccess();
+  }, "Failed to delete student");
 }
 
 export async function getStudentById(id: string) {
@@ -282,7 +266,7 @@ export async function getStudentById(id: string) {
         class: true,
         grade: true,
         parent: true,
-        attendances: {  // ✅ FIXED: was 'attendance'
+        attendances: {
           take: 10,
           orderBy: { date: "desc" },
           include: {

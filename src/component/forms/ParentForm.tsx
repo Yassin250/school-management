@@ -9,7 +9,7 @@ import {
   type ParentCreateFormData,
   type ParentUpdateFormData,
 } from "@/lib/formValidation";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { typedZodResolver } from "@/lib/formResolver";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -30,7 +30,28 @@ type Props = {
 
 type FormValues = ParentCreateFormData | ParentUpdateFormData;
 
-export default function ParentForm({ mode, data }: Props) {
+export default function ParentForm(props: Props) {
+  if (props.mode === "create") {
+    return <ParentCreateForm {...props} />;
+  }
+  return <ParentUpdateForm {...props} />;
+}
+
+function ParentCreateForm(props: Props) {
+  return <ParentFormInner {...props} schema={parentCreateSchema} />;
+}
+
+function ParentUpdateForm(props: Props) {
+  return <ParentFormInner {...props} schema={parentUpdateSchema} />;
+}
+
+function ParentFormInner({
+  mode,
+  data,
+  schema,
+}: Props & {
+  schema: typeof parentCreateSchema | typeof parentUpdateSchema;
+}) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -39,9 +60,7 @@ export default function ParentForm({ mode, data }: Props) {
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
-    resolver: zodResolver(
-      mode === "create" ? parentCreateSchema : parentUpdateSchema
-    ) as any,
+    resolver: typedZodResolver(schema),
     defaultValues: {
       id: data?.id,
       username: data?.username ?? "",

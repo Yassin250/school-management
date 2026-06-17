@@ -9,7 +9,7 @@ import {
   type TeacherCreateFormData,
   type TeacherUpdateFormData,
 } from "@/lib/formValidation";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { typedZodResolver } from "@/lib/formResolver";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -28,7 +28,39 @@ type Props = {
 
 type FormValues = TeacherCreateFormData | TeacherUpdateFormData;
 
-export default function TeacherForm({ mode, data, relatedData }: Props) {
+export default function TeacherForm(props: Props) {
+  if (props.mode === "create") {
+    return <TeacherCreateForm {...props} />;
+  }
+  return <TeacherUpdateForm {...props} />;
+}
+
+function TeacherCreateForm(props: Props) {
+  return (
+    <TeacherFormInner
+      {...props}
+      schema={teacherCreateSchema}
+    />
+  );
+}
+
+function TeacherUpdateForm(props: Props) {
+  return (
+    <TeacherFormInner
+      {...props}
+      schema={teacherUpdateSchema}
+    />
+  );
+}
+
+function TeacherFormInner({
+  mode,
+  data,
+  relatedData,
+  schema,
+}: Props & {
+  schema: typeof teacherCreateSchema | typeof teacherUpdateSchema;
+}) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -38,7 +70,7 @@ export default function TeacherForm({ mode, data, relatedData }: Props) {
     control,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
-    resolver: zodResolver(mode === "create" ? teacherCreateSchema : teacherUpdateSchema) as any,
+    resolver: typedZodResolver(schema),
     defaultValues: {
       id: data?.id,
       username: data?.username ?? "",

@@ -216,7 +216,7 @@ export default function StudentsListClient({ data }: { data: Student[] }) {
         onRowClick={handleView}
         getItemName={(student) => student.name}
         deleteConfirmTitle="Delete student?"
-        deleteConfirmDescription="This removes the student profile and login account. This cannot be undone."
+        deleteConfirmDescription="This deactivates the student account while preserving attendance and grade history for auditing."
         emptyState={{
           title: "No students found",
           description: "Get started by enrolling your first student.",

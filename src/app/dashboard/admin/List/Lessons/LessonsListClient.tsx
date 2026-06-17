@@ -26,7 +26,7 @@ import {
   deleteTerm,
   setTermCurrent,
 } from "@/lib/actions/lesson";
-import { DAYS, PERIODS } from "@/component/TimetableClient";
+import { DAYS, PERIODS, isBreakPeriod } from "@/component/TimetableClient";
 
 // ============================================================
 // TYPES
@@ -575,7 +575,7 @@ export default function LessonsListClient({
                 </div>
 
                 {PERIODS.map((period) => {
-                  const isBreak = period.label === "Break" || period.label === "Lunch Break";
+                  const isBreak = isBreakPeriod(period.label);
                   return (
                     <div key={period.time} className="grid grid-cols-[130px_repeat(5,minmax(140px,1fr))] border-b border-slate-100 last:border-b-0">
                       <div className={`px-4 py-3 flex flex-col justify-center ${isBreak ? "bg-amber-50/20" : "bg-white"}`}>
@@ -788,7 +788,7 @@ export default function LessonsListClient({
                     onChange={(e) => setLessonForm({ ...lessonForm, periodTime: e.target.value })}
                     className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-full"
                   >
-                    {PERIODS.filter((p) => p.label !== "Break" && p.label !== "Lunch Break").map((p) => (
+                    {PERIODS.filter((p) => !isBreakPeriod(p.label)).map((p) => (
                       <option key={p.time} value={p.time}>
                         {p.label} ({p.time})
                       </option>

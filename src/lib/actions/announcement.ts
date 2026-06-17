@@ -1,18 +1,21 @@
-// src/lib/actions/announcement.ts
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { logAudit } from "@/lib/audit";
+import { actionSuccess, type ActionResult } from "@/lib/actions/types";
+import { withPermission } from "@/lib/actions/helpers";
 import {
   announcementSchema,
   type AnnouncementFormData,
 } from "@/lib/formValidation";
+import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 
 const ANNOUNCEMENTS_PATH = "/dashboard/admin/list/announcements";
 
-export async function createAnnouncement(data: AnnouncementFormData) {
-  try {
+export async function createAnnouncement(
+  data: AnnouncementFormData
+): Promise<ActionResult<Awaited<ReturnType<typeof prisma.announcement.create>>>> {
+  return withPermission("announcement:manage", async ({ userId }) => {
     const validated = announcementSchema.parse(data);
 
     if (validated.classId) {
@@ -36,19 +39,24 @@ export async function createAnnouncement(data: AnnouncementFormData) {
       },
     });
 
+    await logAudit({
+      userId,
+      action: "CREATE",
+      entity: "Announcement",
+      entityId: String(announcement.id),
+      description: `Created announcement ${announcement.title}`,
+    });
+
     revalidatePath(ANNOUNCEMENTS_PATH);
-    return { success: true, data: announcement };
-  } catch (error) {
-    console.error("Create announcement error:", error);
-    if (error instanceof z.ZodError) {
-      return { success: false, error: error.issues[0]?.message ?? "Invalid form data" };
-    }
-    return { success: false, error: "Failed to create announcement" };
-  }
+    return actionSuccess(announcement);
+  }, "Failed to create announcement");
 }
 
-export async function updateAnnouncement(id: number, data: AnnouncementFormData) {
-  try {
+export async function updateAnnouncement(
+  id: number,
+  data: AnnouncementFormData
+): Promise<ActionResult<Awaited<ReturnType<typeof prisma.announcement.update>>>> {
+  return withPermission("announcement:manage", async ({ userId }) => {
     const validated = announcementSchema.parse(data);
 
     const existing = await prisma.announcement.findUnique({ where: { id } });
@@ -78,21 +86,25 @@ export async function updateAnnouncement(id: number, data: AnnouncementFormData)
       },
     });
 
+    await logAudit({
+      userId,
+      action: "UPDATE",
+      entity: "Announcement",
+      entityId: String(id),
+      description: `Updated announcement ${announcement.title}`,
+    });
+
     revalidatePath(ANNOUNCEMENTS_PATH);
     revalidatePath(`${ANNOUNCEMENTS_PATH}/${id}`);
     revalidatePath(`${ANNOUNCEMENTS_PATH}/${id}/edit`);
-    return { success: true, data: announcement };
-  } catch (error) {
-    console.error("Update announcement error:", error);
-    if (error instanceof z.ZodError) {
-      return { success: false, error: error.issues[0]?.message ?? "Invalid form data" };
-    }
-    return { success: false, error: "Failed to update announcement" };
-  }
+    return actionSuccess(announcement);
+  }, "Failed to update announcement");
 }
 
-export async function deleteAnnouncement(id: number) {
-  try {
+export async function deleteAnnouncement(
+  id: number
+): Promise<ActionResult<void>> {
+  return withPermission("announcement:manage", async ({ userId }) => {
     const announcement = await prisma.announcement.findUnique({ where: { id } });
 
     if (!announcement) {
@@ -101,10 +113,15 @@ export async function deleteAnnouncement(id: number) {
 
     await prisma.announcement.delete({ where: { id } });
 
+    await logAudit({
+      userId,
+      action: "DELETE",
+      entity: "Announcement",
+      entityId: String(id),
+      description: `Deleted announcement ${announcement.title}`,
+    });
+
     revalidatePath(ANNOUNCEMENTS_PATH);
-    return { success: true };
-  } catch (error) {
-    console.error("Delete announcement error:", error);
-    return { success: false, error: "Failed to delete announcement." };
-  }
+    return actionSuccess();
+  }, "Failed to delete announcement");
 }

@@ -1,6 +1,6 @@
-import TeacherDetailView from "./TeacherDetailView";
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
+import TeacherDetailView from "./TeacherDetailView";
 
 export default async function TeacherDetailPage({
   params,
@@ -12,10 +12,9 @@ export default async function TeacherDetailPage({
   const teacher = await prisma.teacher.findUnique({
     where: { id },
     include: {
-      subjects: true,
-      supervisedClasses: true,
-      lessons: {
-        include: { class: true },
+      subjects: { select: { name: true } },
+      supervisedClasses: {
+        select: { name: true, students: { select: { id: true } } },
       },
     },
   });
@@ -24,15 +23,12 @@ export default async function TeacherDetailPage({
     notFound();
   }
 
-  const supervisedClassNames = teacher.supervisedClasses.map((c) => c.name);
-  const lessonClassNames = teacher.lessons.map((l) => l.class.name);
-  const classes = Array.from(new Set([...supervisedClassNames, ...lessonClassNames]));
-
-  const studentCount = await prisma.student.count({
-    where: {
-      classId: { in: teacher.supervisedClasses.map((c) => c.id) },
-    },
-  });
+  const subjects = teacher.subjects.map((s) => s.name);
+  const classes = teacher.supervisedClasses.map((c) => c.name);
+  const studentCount = teacher.supervisedClasses.reduce(
+    (acc, c) => acc + c.students.length,
+    0
+  );
 
   return (
     <TeacherDetailView
@@ -45,11 +41,11 @@ export default async function TeacherDetailPage({
         address: teacher.address,
         sex: teacher.sex,
         birthday: teacher.birthday.toISOString(),
-        img: teacher.img,
-        subjects: teacher.subjects.map((s) => s.name),
+        img: teacher.img ?? null,
+        subjects,
         classes,
         studentCount,
-        createdAt: teacher.createdAt.toISOString(),
+        createdAt: new Date().toISOString(),
       }}
     />
   );
