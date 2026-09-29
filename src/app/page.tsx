@@ -1,19 +1,14 @@
-import { auth } from "@/auth";
-import { redirect } from "next/navigation";
-
-const VALID_ROLES = ["admin", "teacher", "student", "parent"] as const;
-
-export default async function Home() {
-  const session = await auth();
-
-  if (!session?.user) {
-    redirect("/login");
-  }
-
-  const role = session.user.role;
-  if (!role || !VALID_ROLES.includes(role as (typeof VALID_ROLES)[number])) {
-    redirect("/login");
-  }
-
-  redirect(`/dashboard/${role}`);
+export default function HomePage() {
+  return (
+    <main className="flex min-h-screen items-center justify-center p-6">
+      <div className="text-center">
+        <h1 className="text-2xl font-semibold">
+          School Management System
+        </h1>
+        <p className="text-muted-foreground mt-2">
+          The application is under active development.
+        </p>
+      </div>
+    </main>
+  );
 }

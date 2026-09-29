@@ -1,41 +1,53 @@
-import NextAuth from "next-auth";
-import Credentials from "next-auth/providers/credentials";
-import Google from "next-auth/providers/google";
-import { env } from "@/env";
-import { prisma } from "@/lib/prisma";
-import { rateLimit } from "@/lib/rate-limit";
-import { compare } from "bcryptjs";
-import type { Role } from "@/generated/prisma/client";
+// ============================================================
+// NextAuth Configuration (Minimal — V1)
+// Credentials provider + JWT session strategy.
+// ============================================================
 
-async function isProfileActive(userId: string, role: Role): Promise<boolean> {
-  switch (role) {
-    case "student": {
-      const profile = await prisma.student.findUnique({ where: { id: userId } });
-      return !!profile;
-    }
-    case "teacher": {
-      const profile = await prisma.teacher.findUnique({ where: { id: userId } });
-      return !!profile;
-    }
-    case "parent": {
-      const profile = await prisma.parent.findUnique({ where: { id: userId } });
-      return !!profile;
-    }
-    case "admin":
-      return true;
-    default:
-      return false;
+import NextAuth, { type DefaultSession } from "next-auth";
+import Credentials from "next-auth/providers/credentials";
+import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/prisma";
+
+// ------------------------------------------------------------
+// Type augmentation
+// ------------------------------------------------------------
+
+declare module "next-auth" {
+  interface Session {
+    user: {
+      id: string;
+      role: string;
+    } & DefaultSession["user"];
+  }
+
+  interface User {
+    id: string;
+    role: string;
   }
 }
 
+declare module "next-auth/jwt" {
+  interface JWT {
+    id?: string;
+    role?: string;
+  }
+}
+
+// ------------------------------------------------------------
+// NextAuth config
+// ------------------------------------------------------------
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  session: {
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
+  },
+  pages: {
+    signIn: "/login",
+  },
   providers: [
-    Google({
-      clientId: process.env.AUTH_GOOGLE_ID,
-      clientSecret: process.env.AUTH_GOOGLE_SECRET,
-    }),
     Credentials({
-      name: "credentials",
+      name: "Credentials",
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
@@ -45,73 +57,58 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           return null;
         }
 
-        const email = credentials.email as string;
-        const limit = rateLimit(`login:${email}`, 5, 15 * 60 * 1000);
-        if (!limit.success) {
-          return null;
-        }
+        const email = String(credentials.email).toLowerCase().trim();
+        const password = String(credentials.password);
 
         const user = await prisma.user.findUnique({
           where: { email },
         });
 
-        if (!user) {
-          return null;
-        }
+        if (!user) return null;
+        if (user.status !== "ACTIVE") return null;
+        if (user.deletedAt) return null;
 
-        const isValid = await compare(
-          credentials.password as string,
-          user.password
+        const passwordMatches = await bcrypt.compare(
+          password,
+          user.passwordHash,
         );
+        if (!passwordMatches) return null;
 
-        if (!isValid) {
-          return null;
-        }
+        // Update last login
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { lastLoginAt: new Date() },
+        });
 
-        const active = await isProfileActive(user.id, user.role);
-        if (!active) {
-          return null;
-        }
+        // Fetch the user's primary role (temporary bridge until full RBAC)
+        const primaryRole = await prisma.userRole.findFirst({
+          where: { userId: user.id },
+          include: { role: true },
+        });
 
         return {
           id: user.id,
-          name: user.username,
           email: user.email,
-          role: user.role,
+          name: user.username,
+          role: primaryRole?.role.key ?? "STUDENT",
         };
       },
     }),
   ],
   callbacks: {
-    async jwt({ token, user, account }) {
-      // When user logs in for the first time
+    async jwt({ token, user }) {
       if (user) {
-        token.role = user.role;
         token.id = user.id;
+        token.role = user.role;
       }
-      
-      // If signing in with Google, assign a default role
-      // Later you'll check the database for existing Google users
-      if (account?.provider === "google" && !token.role) {
-        token.role = "student"; // Default role for Google sign-ups
-      }
-      
       return token;
     },
     async session({ session, token }) {
-      if (session.user) {
-        session.user.role = token.role as string;
-        session.user.id = token.id as string;
+      if (token.id && session.user) {
+        session.user.id = String(token.id);
+        session.user.role = String(token.role ?? "STUDENT");
       }
       return session;
     },
-  },
-  pages: {
-    signIn: "/login",
-    error: "/login",
-  },
-  secret: env.AUTH_SECRET,
-  session: {
-    strategy: "jwt",
   },
 });
