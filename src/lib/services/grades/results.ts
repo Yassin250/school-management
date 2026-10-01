@@ -12,10 +12,11 @@
 // ============================================================
 
 import { prisma } from "@/lib/prisma";
-import { requirePermission } from "@/lib/permissions/require";
+import { canForUser } from "@/lib/permissions/can";
 import { logAudit } from "@/lib/audit/audit";
 import {
   ConflictError,
+  ForbiddenError,
   NotFoundError,
   ValidationError,
 } from "@/lib/errors";
@@ -69,19 +70,21 @@ export interface EnterResultInput {
   score: number | null;
   isAbsent: boolean;
   note?: string;
+  actor: CurrentUser;
 }
 
 export async function enterResult(input: EnterResultInput) {
-  const { assessmentId, studentId, score, isAbsent, note } = input;
+  const { assessmentId, studentId, score, isAbsent, note, actor } = input;
 
   // 1. Load assessment + permission + scope
   const assessment = await loadAssessment(assessmentId);
   assertEditable(assessment.status);
 
-  const user = await requirePermission("grades.enter", {
+  const allowed = await canForUser(actor, "grades.enter", {
     type: "assessment",
     assessmentId,
   });
+  if (!allowed) throw new ForbiddenError("grades.enter");
 
   // 2. Validate input
   validateScoreInput(score, isAbsent, assessment.maxScore);
@@ -104,7 +107,7 @@ export async function enterResult(input: EnterResultInput) {
             score,
             isAbsent,
             note: note ?? null,
-            enteredById: user.id,
+            enteredById: actor.id,
             enteredAt: new Date(),
           },
         })
@@ -115,12 +118,12 @@ export async function enterResult(input: EnterResultInput) {
             score,
             isAbsent,
             note: note ?? null,
-            enteredById: user.id,
+            enteredById: actor.id,
           },
         });
 
     await logAudit({
-      actorId: user.id,
+      actorId: actor.id,
       action: existing ? "GRADE_UPDATED" : "GRADE_ENTERED",
       entity: "AssessmentResult",
       entityId: result.id,
@@ -157,6 +160,7 @@ export interface BulkEnterResultInput {
     isAbsent: boolean;
     note?: string;
   }>;
+  actor: CurrentUser;
 }
 
 /**
@@ -164,7 +168,7 @@ export interface BulkEnterResultInput {
  * Useful for bulk mark entry from the UI.
  */
 export async function enterResultsBulk(input: BulkEnterResultInput) {
-  const { assessmentId, results } = input;
+  const { assessmentId, results, actor } = input;
 
   if (results.length === 0) {
     throw new ValidationError("No results provided.");
@@ -174,10 +178,11 @@ export async function enterResultsBulk(input: BulkEnterResultInput) {
   const assessment = await loadAssessment(assessmentId);
   assertEditable(assessment.status);
 
-  const user = await requirePermission("grades.enter", {
+  const allowed = await canForUser(actor, "grades.enter", {
     type: "assessment",
     assessmentId,
   });
+  if (!allowed) throw new ForbiddenError("grades.enter");
 
   // 2. Validate all inputs
   for (const r of results) {
@@ -215,7 +220,7 @@ export async function enterResultsBulk(input: BulkEnterResultInput) {
               score: r.score,
               isAbsent: r.isAbsent,
               note: r.note ?? null,
-              enteredById: user.id,
+              enteredById: actor.id,
               enteredAt: now,
             },
           })
@@ -226,7 +231,7 @@ export async function enterResultsBulk(input: BulkEnterResultInput) {
               score: r.score,
               isAbsent: r.isAbsent,
               note: r.note ?? null,
-              enteredById: user.id,
+              enteredById: actor.id,
             },
           });
 
@@ -234,7 +239,7 @@ export async function enterResultsBulk(input: BulkEnterResultInput) {
     }
 
     await logAudit({
-      actorId: user.id,
+      actorId: actor.id,
       action: "GRADE_UPDATED",
       entity: "Assessment",
       entityId: assessmentId,
@@ -257,14 +262,16 @@ export async function enterResultsBulk(input: BulkEnterResultInput) {
 export async function deleteResult(
   assessmentId: string,
   studentId: string,
+  actor: CurrentUser,
 ) {
   const assessment = await loadAssessment(assessmentId);
   assertEditable(assessment.status);
 
-  const user = await requirePermission("grades.enter", {
+  const allowed = await canForUser(actor, "grades.enter", {
     type: "assessment",
     assessmentId,
   });
+  if (!allowed) throw new ForbiddenError("grades.enter");
 
   const existing = await prisma.assessmentResult.findUnique({
     where: {
@@ -273,14 +280,17 @@ export async function deleteResult(
   });
 
   if (!existing) {
-    throw new NotFoundError("AssessmentResult", `${assessmentId}/${studentId}`);
+    throw new NotFoundError(
+      "AssessmentResult",
+      `${assessmentId}/${studentId}`,
+    );
   }
 
   return prisma.$transaction(async (tx) => {
     await tx.assessmentResult.delete({ where: { id: existing.id } });
 
     await logAudit({
-      actorId: user.id,
+      actorId: actor.id,
       action: "GRADE_UPDATED",
       entity: "AssessmentResult",
       entityId: existing.id,
@@ -302,11 +312,15 @@ export async function deleteResult(
  * Returns all results for an assessment.
  * Scope: whoever can read the assessment can read its results.
  */
-export async function listResults(assessmentId: string) {
-  await requirePermission("grades.read", {
+export async function listResults(
+  assessmentId: string,
+  actor: CurrentUser,
+) {
+  const allowed = await canForUser(actor, "grades.read", {
     type: "assessment",
     assessmentId,
   });
+  if (!allowed) throw new ForbiddenError("grades.read");
 
   return prisma.assessmentResult.findMany({
     where: { assessmentId },
@@ -344,11 +358,9 @@ function validateScoreInput(
     return;
   }
 
-  // Not absent -> score required
+  // Not absent, allow null (partial save)
   if (score === null || score === undefined) {
-    throw new ValidationError(
-      "A student who is not absent must have a score.",
-    );
+    return;
   }
 
   if (typeof score !== "number" || Number.isNaN(score)) {

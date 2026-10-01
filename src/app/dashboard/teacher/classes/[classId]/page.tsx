@@ -170,7 +170,14 @@ export default async function TeacherClassDetailPage({
                   key={a.id}
                   className="border-b border-neutral-100 last:border-0"
                 >
-                  <td className="px-6 py-3 text-neutral-900">{a.title}</td>
+                                    <td className="px-6 py-3 text-neutral-900">
+                    <Link
+                      href={`/dashboard/teacher/classes/${classId}/assessments/${a.id}`}
+                      className="font-medium text-neutral-900 hover:underline"
+                    >
+                      {a.title}
+                    </Link>
+                  </td>
                   <td className="px-6 py-3 text-neutral-600">
                     {a.type.replace(/_/g, " ")}
                   </td>
