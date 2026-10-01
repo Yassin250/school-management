@@ -15,7 +15,7 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-neutral-50 text-neutral-900">
+    <div className="flex min-h-screen flex-col bg-background text-foreground">
       {/* Top Navbar */}
       <TopNavbar
         user={{

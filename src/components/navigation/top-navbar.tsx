@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { logoutAction } from "@/app/login/actions";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
 
 interface TopNavbarProps {
   user: {
@@ -11,60 +15,66 @@ interface TopNavbarProps {
 
 export function TopNavbar({ user }: TopNavbarProps) {
   return (
-    <header className="sticky top-0 z-30 border-b border-neutral-200 bg-white/90 backdrop-blur-md">
+    <header className="sticky top-0 z-30 border-b border-border bg-card/90 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         {/* Brand & Context */}
         <div className="flex items-center gap-6">
           <Link
             href="/dashboard"
-            className="flex items-center gap-2.5 font-bold text-neutral-900 transition hover:opacity-80"
+            className="flex items-center gap-2.5 font-bold text-foreground transition hover:opacity-80"
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-600 text-white font-extrabold shadow-sm">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground font-extrabold shadow-sm">
               RW
             </div>
             <div className="flex flex-col">
-              <span className="text-sm font-semibold tracking-tight text-neutral-900">
+              <span className="text-sm font-semibold tracking-tight text-foreground">
                 School Management
               </span>
-              <span className="text-[10px] text-neutral-500 uppercase tracking-widest font-mono">
+              <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-mono">
                 Rwanda Curriculum
               </span>
             </div>
           </Link>
 
-          <div className="hidden md:flex items-center gap-2 rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs text-neutral-600">
+          <div className="hidden md:flex items-center gap-2 rounded-full border border-border bg-muted/50 px-3 py-1 text-xs text-muted-foreground">
             <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span>2026/2027 &bull; Term 1 (Active)</span>
           </div>
         </div>
 
-        {/* User profile & controls */}
+        {/* User profile, theme toggle & controls */}
         <div className="flex items-center gap-3">
-          {/* Role pills */}
+          {/* Role badges */}
           <div className="hidden sm:flex items-center gap-1.5">
             {user.roles.map((role) => (
-              <span
+              <Badge
                 key={role}
-                className="rounded-md bg-neutral-100 px-2.5 py-0.5 text-xs font-medium text-neutral-700 border border-neutral-200"
+                variant="secondary"
+                className="text-[11px] font-medium"
               >
                 {role.replace(/_/g, " ")}
-              </span>
+              </Badge>
             ))}
           </div>
 
-          <div className="h-4 w-px bg-neutral-200 mx-1 hidden sm:block"></div>
+          <ThemeToggle />
 
-          <span className="text-xs sm:text-sm font-medium text-neutral-800">
+          <div className="h-4 w-px bg-border mx-1 hidden sm:block"></div>
+
+          <span className="text-xs sm:text-sm font-medium text-foreground">
             {user.username}
           </span>
 
           <form action={logoutAction}>
-            <button
+            <Button
               type="submit"
-              className="rounded-lg border border-neutral-300 bg-white px-3 py-1.5 text-xs sm:text-sm font-medium text-neutral-700 shadow-sm transition hover:bg-neutral-50 hover:text-neutral-900"
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs text-muted-foreground hover:text-foreground"
             >
-              Sign out
-            </button>
+              <LogOut className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Sign out</span>
+            </Button>
           </form>
         </div>
       </div>

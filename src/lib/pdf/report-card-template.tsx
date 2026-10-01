@@ -238,7 +238,7 @@ export function ReportCardPdf({ data }: { data: ReportCardPdfData }) {
         <View style={styles.header}>
           <Text style={styles.schoolName}>{data.school.name}</Text>
           {data.school.motto && (
-            <Text style={styles.motto}>"{data.school.motto}"</Text>
+            <Text style={styles.motto}>{`"${data.school.motto}"`}</Text>
           )}
           <Text style={styles.contact}>
             {[data.school.address, data.school.city, data.school.phone]
@@ -337,14 +337,14 @@ export function ReportCardPdf({ data }: { data: ReportCardPdfData }) {
         {/* Comments */}
         {data.teacherComment && (
           <View style={styles.commentBlock}>
-            <Text style={styles.commentTitle}>TEACHER'S REMARKS</Text>
+            <Text style={styles.commentTitle}>{"TEACHER'S REMARKS"}</Text>
             <Text style={styles.commentText}>{data.teacherComment}</Text>
           </View>
         )}
 
         {data.principalComment && (
           <View style={styles.commentBlock}>
-            <Text style={styles.commentTitle}>PRINCIPAL'S REMARKS</Text>
+            <Text style={styles.commentTitle}>{"PRINCIPAL'S REMARKS"}</Text>
             <Text style={styles.commentText}>{data.principalComment}</Text>
           </View>
         )}

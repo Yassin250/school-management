@@ -37,9 +37,6 @@ export function ReportCardActions({
     });
   }
 
-  const canDownload =
-    reportCardId && status && ["APPROVED", "PUBLISHED"].includes(status);
-
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
       {error && (

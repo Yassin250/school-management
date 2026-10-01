@@ -9,7 +9,7 @@ import { NextResponse } from "next/server";
 import { requireCurrentUser } from "@/lib/auth/session";
 import { canForUser } from "@/lib/permissions/can";
 import { renderReportCardPdf } from "@/lib/pdf/render-report-card";
-import { isAppError, toErrorResponse } from "@/lib/errors";
+import { toErrorResponse } from "@/lib/errors";
 import { prisma } from "@/lib/prisma";
 
 interface RouteParams {
