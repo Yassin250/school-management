@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { saveMarksAction } from "./actions";
+import { submitAssessmentAction } from "./submit-action";
 import type { StudentMarkRow } from "@/lib/services/teacher/assessment-detail";
 
 interface Props {
@@ -30,7 +31,9 @@ export function MarkEntryForm({
 }: Props) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [isSubmitting, startSubmitTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const [rows, setRows] = useState<RowState[]>(
@@ -76,11 +79,10 @@ export function MarkEntryForm({
     setError(null);
     setSuccess(false);
 
-    // Client-side validation
     const max = Number(maxScore);
     for (const r of rows) {
       if (r.isAbsent) continue;
-      if (r.score.trim() === "") continue; // allow partial save
+      if (r.score.trim() === "") continue;
       const num = Number(r.score);
       if (!Number.isFinite(num) || num < 0 || num > max) {
         setError(
@@ -110,6 +112,21 @@ export function MarkEntryForm({
     });
   }
 
+  function handleSubmit() {
+    setSubmitError(null);
+
+    startSubmitTransition(async () => {
+      const result = await submitAssessmentAction(assessmentId);
+
+      if (result.error) {
+        setSubmitError(result.error);
+        return;
+      }
+
+      router.refresh();
+    });
+  }
+
   return (
     <div className="space-y-4">
       {error && (
@@ -118,6 +135,15 @@ export function MarkEntryForm({
           className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700"
         >
           {error}
+        </div>
+      )}
+
+      {submitError && (
+        <div
+          role="alert"
+          className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700"
+        >
+          Cannot submit: {submitError}
         </div>
       )}
 
@@ -194,23 +220,25 @@ export function MarkEntryForm({
       </div>
 
       {editable && (
-        <div className="flex justify-end">
+        <div className="flex items-center justify-end gap-3">
           <button
             type="button"
             onClick={handleSave}
-            disabled={isPending}
-            className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
+            disabled={isPending || isSubmitting}
+            className="rounded-md border border-neutral-300 bg-white px-4 py-2 text-sm font-medium text-neutral-700 hover:bg-neutral-50 disabled:opacity-60"
           >
             {isPending ? "Saving..." : "Save Marks"}
           </button>
-        </div>
-      )}
 
-      {!editable && (
-        <p className="text-sm text-neutral-500">
-          This assessment is <strong>{assessmentId ? "" : ""}</strong>
-          in a state that does not allow editing marks.
-        </p>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isPending || isSubmitting}
+            className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white hover:bg-neutral-800 disabled:opacity-60"
+          >
+            {isSubmitting ? "Submitting..." : "Submit for Review"}
+          </button>
+        </div>
       )}
     </div>
   );

@@ -45,7 +45,7 @@ export default async function AssessmentDetailPage({ params }: PageProps) {
 
       {/* Header */}
       <header className="rounded-lg border border-neutral-200 bg-white p-6">
-        <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-neutral-900">
               {assessment.title}
@@ -56,9 +56,7 @@ export default async function AssessmentDetailPage({ params }: PageProps) {
               {assessment.termName}
             </p>
           </div>
-          <span className="rounded-md bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700">
-            {assessment.status}
-          </span>
+          <StatusBadge status={assessment.status} />
         </div>
 
         <div className="mt-4 flex flex-wrap gap-4 text-sm text-neutral-600">
@@ -114,5 +112,25 @@ export default async function AssessmentDetailPage({ params }: PageProps) {
         />
       </section>
     </div>
+  );
+}
+
+
+function StatusBadge({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    DRAFT: "bg-neutral-100 text-neutral-700",
+    SUBMITTED: "bg-blue-50 text-blue-700",
+    UNDER_REVIEW: "bg-amber-50 text-amber-700",
+    APPROVED: "bg-green-50 text-green-700",
+    RETURNED: "bg-red-50 text-red-700",
+    LOCKED: "bg-neutral-800 text-white",
+    CORRECTION_PENDING: "bg-purple-50 text-purple-700",
+  };
+  return (
+    <span
+      className={`rounded-md px-3 py-1 text-xs font-medium ${styles[status] ?? styles.DRAFT}`}
+    >
+      {status.replace(/_/g, " ")}
+    </span>
   );
 }
