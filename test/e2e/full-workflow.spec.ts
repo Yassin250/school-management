@@ -206,61 +206,64 @@ test.describe("4. Admin generates and publishes report cards", () => {
       page.getByRole("heading", { name: "Report Cards" }),
     ).toBeVisible({ timeout: 10000 });
 
-    // Find a row that isn't already PUBLISHED, so we can walk it
-    // through Generate → Approve → Publish
-    const rows = page.locator("tbody tr");
-    const rowCount = await rows.count();
+    // Find the first student row for Alice Student (STU-001).
+    // We know from the seed that Alice is always the first student.
+    // Re-run generation for her by using the workflow properly:
+    // 1. If the row is PUBLISHED — just verify download works
+    // 2. If the row is GENERATED — click Approve, then Publish
+    // 3. If the row is not generated — click Generate, wait, Approve, Publish
 
-    let targetRow: Locator | null = null;
-    for (let i = 0; i < rowCount; i++) {
-      const row = rows.nth(i);
-      const text = (await row.textContent()) ?? "";
-      if (!text.includes("PUBLISHED")) {
-        targetRow = row;
-        break;
-      }
-    }
+    const aliceRow = page.locator("tbody tr", { hasText: "Student Alice" });
+    await expect(aliceRow).toBeVisible({ timeout: 5000 });
 
-    // If every row is already PUBLISHED, use the first one (it already has a PDF)
-    if (!targetRow) {
-      targetRow = rows.first();
-    }
+    // Read current status from the row
+    const rowText = (await aliceRow.textContent()) ?? "";
 
-    // Step 1: Generate (if applicable)
-    const generateBtn = targetRow.locator('button:has-text("Generate")');
+    // Step 1: Generate — only if we see the exact button "Generate"
+    // (not "Regenerate")
+    const generateBtn = aliceRow.getByRole("button", {
+      name: "Generate",
+      exact: true,
+    });
     if (await generateBtn.isVisible().catch(() => false)) {
       await generateBtn.click();
       await expect(
-        targetRow.locator('button:has-text("Approve")'),
+        aliceRow.getByRole("button", { name: "Approve", exact: true }),
       ).toBeVisible({ timeout: 20000 });
     }
 
-    // Step 2: Approve (if applicable)
-    const approveBtn = targetRow.locator('button:has-text("Approve")');
+    // Step 2: Approve — if row shows Approve
+    const approveBtn = aliceRow.getByRole("button", {
+      name: "Approve",
+      exact: true,
+    });
     if (await approveBtn.isVisible().catch(() => false)) {
       await approveBtn.click();
       await expect(
-        targetRow.locator('button:has-text("Publish")'),
+        aliceRow.getByRole("button", { name: "Publish", exact: true }),
       ).toBeVisible({ timeout: 20000 });
     }
 
-    // Step 3: Publish (if applicable)
-    const publishBtn = targetRow.locator('button:has-text("Publish")');
+    // Step 3: Publish — if row shows Publish
+    const publishBtn = aliceRow.getByRole("button", {
+      name: "Publish",
+      exact: true,
+    });
     if (await publishBtn.isVisible().catch(() => false)) {
       await publishBtn.click();
       await expect(
-        targetRow.locator('a:has-text("Download PDF")'),
+        aliceRow.locator('a:has-text("Download PDF")'),
       ).toBeVisible({ timeout: 20000 });
     }
 
-    // Step 4: Verify the PDF link is present
-    const downloadLink = targetRow.locator('a:has-text("Download PDF")');
+    // Step 4: Verify the PDF link is present (row must be APPROVED or PUBLISHED)
+    const downloadLink = aliceRow.locator('a:has-text("Download PDF")');
     await expect(downloadLink).toBeVisible({ timeout: 10000 });
 
     const href = await downloadLink.getAttribute("href");
     expect(href).toMatch(/^\/api\/report-cards\/.+\/pdf$/);
 
-    // Step 5: Fetch the PDF using the page's authenticated session
+    // Step 5: Fetch the PDF
     const response = await page.request.get(href!);
     expect(response.status()).toBe(200);
     expect(response.headers()["content-type"]).toBe("application/pdf");

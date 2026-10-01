@@ -25,6 +25,31 @@ export interface CreateStudentInput {
   academicYearId?: string;
 }
 
+// ------------------------------------------------------------
+// Helpers
+// ------------------------------------------------------------
+
+async function generateStudentCode(
+  tx: Prisma.TransactionClient,
+): Promise<string> {
+  const year = new Date().getFullYear();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const random = Math.floor(1000 + Math.random() * 9000);
+    const code = `STU-${year}-${random}`;
+    const existing = await tx.student.findUnique({
+      where: { studentCode: code },
+      select: { id: true },
+    });
+    if (!existing) return code;
+  }
+  // Deterministic fallback to avoid collisions
+  return `STU-${year}-${Date.now().toString().slice(-6)}`;
+}
+
+// ------------------------------------------------------------
+// listStudents
+// ------------------------------------------------------------
+
 export async function listStudents(
   actor: CurrentUser,
   params: {
@@ -33,7 +58,7 @@ export async function listStudents(
     status?: "ACTIVE" | "GRADUATED" | "TRANSFERRED" | "WITHDRAWN";
     take?: number;
     skip?: number;
-  } = {}
+  } = {},
 ) {
   const allowed = await canForUser(actor, "students.read");
   if (!allowed) throw new ForbiddenError("students.read");
@@ -44,9 +69,7 @@ export async function listStudents(
     deletedAt: null,
   };
 
-  if (status) {
-    where.status = status;
-  }
+  if (status) where.status = status;
 
   if (query && query.trim()) {
     const q = query.trim();
@@ -60,10 +83,7 @@ export async function listStudents(
 
   if (classId) {
     where.enrollments = {
-      some: {
-        classId,
-        status: "ACTIVE",
-      },
+      some: { classId, status: "ACTIVE" },
     };
   }
 
@@ -109,9 +129,13 @@ export async function listStudents(
   };
 }
 
+// ------------------------------------------------------------
+// createStudent
+// ------------------------------------------------------------
+
 export async function createStudent(
   actor: CurrentUser,
-  input: CreateStudentInput
+  input: CreateStudentInput,
 ) {
   const allowed = await canForUser(actor, "students.create");
   if (!allowed) throw new ForbiddenError("students.create");
@@ -122,13 +146,28 @@ export async function createStudent(
   if (!input.dateOfBirth) {
     throw new ValidationError("Date of birth is required.");
   }
+  if (input.sex !== "MALE" && input.sex !== "FEMALE") {
+    throw new ValidationError("Sex must be MALE or FEMALE.");
+  }
 
-  // Generate unique student code: STU-YYYY-RANDOM
-  const year = new Date().getFullYear();
-  const random = Math.floor(1000 + Math.random() * 9000);
-  const studentCode = `STU-${year}-${random}`;
+  const trimmedNationalId = input.nationalId?.trim() || null;
+
+  // Duplicate national ID check
+  if (trimmedNationalId) {
+    const existingNationalId = await prisma.student.findUnique({
+      where: { nationalId: trimmedNationalId },
+      select: { id: true },
+    });
+    if (existingNationalId) {
+      throw new ValidationError(
+        `A student with national ID ${trimmedNationalId} already exists.`,
+      );
+    }
+  }
 
   return prisma.$transaction(async (tx) => {
+    const studentCode = await generateStudentCode(tx);
+
     const student = await tx.student.create({
       data: {
         studentCode,
@@ -137,37 +176,59 @@ export async function createStudent(
         sex: input.sex,
         dateOfBirth: new Date(input.dateOfBirth),
         nationality: input.nationality?.trim() || "Rwandan",
-        nationalId: input.nationalId?.trim() || null,
+        nationalId: trimmedNationalId,
         phone: input.phone?.trim() || null,
         email: input.email?.trim() || null,
         address: input.address?.trim() || null,
         placeOfBirth: input.placeOfBirth?.trim() || null,
-        admissionDate: input.admissionDate ? new Date(input.admissionDate) : new Date(),
+        admissionDate: input.admissionDate
+          ? new Date(input.admissionDate)
+          : new Date(),
         status: "ACTIVE",
       },
     });
 
-    // Optional direct enrollment if class is provided
+    // Optional initial enrollment
     if (input.initialClassId && input.academicYearId) {
       const cls = await tx.class.findUnique({
         where: { id: input.initialClassId },
-        select: { id: true, educationLevelId: true, pathwayId: true, tradeId: true },
+        select: {
+          id: true,
+          educationLevelId: true,
+          pathwayId: true,
+          tradeId: true,
+        },
       });
 
-      if (cls) {
-        await tx.enrollment.create({
-          data: {
-            studentId: student.id,
-            academicYearId: input.academicYearId,
-            educationLevelId: cls.educationLevelId,
-            classId: cls.id,
-            pathwayId: cls.pathwayId,
-            tradeId: cls.tradeId,
-            status: "ACTIVE",
-            startDate: new Date(),
-          },
-        });
+      if (!cls) {
+        throw new ValidationError(
+          `Class ${input.initialClassId} not found.`,
+        );
       }
+
+      const academicYear = await tx.academicYear.findUnique({
+        where: { id: input.academicYearId },
+        select: { id: true },
+      });
+
+      if (!academicYear) {
+        throw new ValidationError(
+          `Academic year ${input.academicYearId} not found.`,
+        );
+      }
+
+      await tx.enrollment.create({
+        data: {
+          studentId: student.id,
+          academicYearId: academicYear.id,
+          educationLevelId: cls.educationLevelId,
+          classId: cls.id,
+          pathwayId: cls.pathwayId,
+          tradeId: cls.tradeId,
+          status: "ACTIVE",
+          startDate: new Date(),
+        },
+      });
     }
 
     await logAudit({
@@ -179,6 +240,7 @@ export async function createStudent(
         studentCode: student.studentCode,
         firstName: student.firstName,
         lastName: student.lastName,
+        nationalId: student.nationalId,
       },
       tx,
     });
