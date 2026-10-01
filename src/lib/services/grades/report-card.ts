@@ -3,7 +3,7 @@
 // ============================================================
 // Gating, generation, and regeneration of report cards.
 //
-// See: docs/grade-workflow.md §20
+// See: docs/grade-workflow.md Section20
 // ============================================================
 
 import { prisma } from "@/lib/prisma";

@@ -171,7 +171,7 @@ export async function logAudit(params: LogAuditParams): Promise<void> {
 }
 
 // ------------------------------------------------------------
-// Helper — auto-describe the action if no description was provided
+// Helper - auto-describe the action if no description was provided
 // ------------------------------------------------------------
 
 function buildDescription(params: LogAuditParams): string | undefined {

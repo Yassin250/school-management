@@ -17,8 +17,8 @@ const globalForPrisma = globalThis as unknown as {
 
 // ------------------------------------------------------------
 // Choose the connection string:
-//   - Tests (VITEST=true) → TEST_DATABASE_URL
-//   - Everything else    → DATABASE_URL
+//   - Tests (VITEST=true) -> TEST_DATABASE_URL
+//   - Everything else    -> DATABASE_URL
 // ------------------------------------------------------------
 
 const isTest =

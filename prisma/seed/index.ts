@@ -14,6 +14,7 @@ import { seedCurriculum } from "./curriculum";
 import { seedTvet } from "./tvet";
 import { seedGradeScales } from "./grade-scales";
 import { seedFirstAdmin } from "./first-admin";
+import { seedDevUsers } from "./dev-users";
 
 // ------------------------------------------------------------
 // Prisma client with adapter (required for Prisma 7)
@@ -52,6 +53,13 @@ async function main() {
 
     // 7. First admin user — only if no users exist
     await seedFirstAdmin(prisma);
+
+
+        // 8. Development accounts (dev/test only — never runs in production)
+    if (process.env.NODE_ENV !== "production") {
+      await seedDevUsers(prisma);
+    }
+
 
     // Summary
     const rbacSummary = getRbacSummary();

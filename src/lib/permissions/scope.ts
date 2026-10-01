@@ -24,7 +24,7 @@ import type { CurrentUser } from "@/lib/auth/session";
  * Is the user allowed to access this student's record?
  *
  * - SYSTEM_ADMIN, SCHOOL_ADMIN, PRINCIPAL, REGISTRAR: yes (school-wide)
- * - ACCOUNTANT: yes (financial context only — enforced at call site)
+ * - ACCOUNTANT: yes (financial context only - enforced at call site)
  * - TEACHER: only if the student is enrolled in a class the teacher teaches
  * - PARENT: only if the parent is linked to the student
  * - STUDENT: only their own record

@@ -50,7 +50,7 @@ export abstract class AppError extends Error {
 }
 
 // ------------------------------------------------------------
-// 401 — Not authenticated
+// 401 - Not authenticated
 // ------------------------------------------------------------
 
 export class UnauthenticatedError extends AppError {
@@ -63,7 +63,7 @@ export class UnauthenticatedError extends AppError {
 }
 
 // ------------------------------------------------------------
-// 403 — Authenticated but not permitted
+// 403 - Authenticated but not permitted
 // ------------------------------------------------------------
 
 export class ForbiddenError extends AppError {
@@ -79,7 +79,7 @@ export class ForbiddenError extends AppError {
 }
 
 // ------------------------------------------------------------
-// 404 — Resource does not exist
+// 404 - Resource does not exist
 // ------------------------------------------------------------
 
 export class NotFoundError extends AppError {
@@ -98,7 +98,7 @@ export class NotFoundError extends AppError {
 }
 
 // ------------------------------------------------------------
-// 409 — Valid request, illegal state
+// 409 - Valid request, illegal state
 // ------------------------------------------------------------
 
 export class ConflictError extends AppError {
@@ -111,7 +111,7 @@ export class ConflictError extends AppError {
 }
 
 // ------------------------------------------------------------
-// 422 — Validation / business rule failure
+// 422 - Validation / business rule failure
 // ------------------------------------------------------------
 
 export class ValidationError extends AppError {
@@ -127,7 +127,7 @@ export class ValidationError extends AppError {
 }
 
 // ------------------------------------------------------------
-// 429 — Rate limited
+// 429 - Rate limited
 // ------------------------------------------------------------
 
 export class RateLimitedError extends AppError {
@@ -143,7 +143,7 @@ export class RateLimitedError extends AppError {
 }
 
 // ------------------------------------------------------------
-// 500 — Unexpected error
+// 500 - Unexpected error
 // ------------------------------------------------------------
 
 export class InternalError extends AppError {
@@ -175,7 +175,7 @@ export function toErrorResponse(error: unknown) {
     };
   }
 
-  // Unknown error — log separately, never leak details.
+  // Unknown error - log separately, never leak details.
   console.error("[Unhandled error]", error);
   return {
     status: 500,

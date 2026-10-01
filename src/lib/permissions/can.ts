@@ -69,17 +69,17 @@ async function checkScope(
 }
 
 // ============================================================
-// can() — the main authorization check
+// can() - the main authorization check
 // ============================================================
 
 /**
  * Returns true if the given user is allowed to perform the action.
  *
  * Behavior:
- *   - If the user is null → false (unauthenticated)
- *   - If the user lacks the permission → false
- *   - If a resource context is provided, scope is checked → false if denied
- *   - Otherwise → true
+ *   - If the user is null -> false (unauthenticated)
+ *   - If the user lacks the permission -> false
+ *   - If a resource context is provided, scope is checked -> false if denied
+ *   - Otherwise -> true
  *
  * This function is the ONLY place that combines permission + scope.
  * Everything else calls it. Nothing bypasses it.

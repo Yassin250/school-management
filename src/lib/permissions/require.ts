@@ -1,5 +1,5 @@
 // ============================================================
-// requirePermission — Throw-on-Deny Authorization
+// requirePermission - Throw-on-Deny Authorization
 // ============================================================
 // Server actions and API routes call requirePermission() instead of
 // can(). If the check fails, it throws a typed error that the error
@@ -101,7 +101,7 @@ export async function requireAnyPermission(
 
 /**
  * Ensures the current user has one of the given roles.
- * Prefer requirePermission() in most cases — this is for rare
+ * Prefer requirePermission() in most cases - this is for rare
  * operations that are strictly role-gated.
  *
  * Throws UnauthenticatedError or ForbiddenError.

@@ -344,7 +344,7 @@ function validateScoreInput(
     return;
   }
 
-  // Not absent → score required
+  // Not absent -> score required
   if (score === null || score === undefined) {
     throw new ValidationError(
       "A student who is not absent must have a score.",
