@@ -684,7 +684,6 @@ export async function seedRbac(prisma: PrismaClient): Promise<void> {
 
   // 4. Upsert role-permission links
   let linkCount = 0;
-  let skippedCount = 0;
 
   for (const [roleKey, permKeys] of Object.entries(ROLE_PERMISSIONS) as [
     RoleKey,

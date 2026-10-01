@@ -24,7 +24,6 @@ import {
 import { ROLES } from "../../src/lib/permissions/constants";
 import type { CurrentUser } from "../../src/lib/auth/session";
 import {
-  transitionAssessment,
   submitAssessment,
   startReview,
   approveAssessment,

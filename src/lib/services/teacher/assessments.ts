@@ -230,8 +230,6 @@ export async function createAssessment(
   }
 
   // Transaction: create + audit
-  const now = new Date();
-
   const created = await prisma.$transaction(async (tx) => {
     const assessment = await tx.assessment.create({
       data: {

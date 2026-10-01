@@ -32,7 +32,6 @@ import {
   canAccessAssessment,
   canAccessReportCard,
   canAccessInvoice,
-  canAccessPayment,
   canAccessAttendance,
   canAccessAnnouncement,
 } from "../../src/lib/permissions/scope";
@@ -291,7 +290,7 @@ describe("Assessment scope", () => {
 describe("Student scope (IDOR prevention)", () => {
   it("TEST-S07: parent A CANNOT read parent B's child", async () => {
     const { user: pAUser } = await createUser(ROLES.PARENT);
-    const parentA = await createParent({ userId: pAUser.id });
+    await createParent({ userId: pAUser.id });
 
     const { user: pBUser } = await createUser(ROLES.PARENT);
     const parentB = await createParent({ userId: pBUser.id });
@@ -308,7 +307,7 @@ describe("Student scope (IDOR prevention)", () => {
 
   it("TEST-S08: student A CANNOT read student B's record", async () => {
     const { user: sAUser } = await createUser(ROLES.STUDENT);
-    const studentA = await createStudent({ userId: sAUser.id });
+    await createStudent({ userId: sAUser.id });
 
     const { user: sBUser } = await createUser(ROLES.STUDENT);
     const studentB = await createStudent({ userId: sBUser.id });

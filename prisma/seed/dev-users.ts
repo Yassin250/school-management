@@ -60,7 +60,7 @@ export async function seedDevUsers(prisma: PrismaClient): Promise<void> {
     },
   });
 
-  const term = await prisma.term.upsert({
+  await prisma.term.upsert({
     where: {
       academicYearId_name: {
         academicYearId: academicYear.id,

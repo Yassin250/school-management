@@ -40,7 +40,7 @@ export function NewAssessmentForm({ classId, subjects }: Props) {
         return;
       }
 
-      // Success — navigate back to the class page
+      // Success - navigate back to the class page
       router.push(`/dashboard/teacher/classes/${classId}`);
       router.refresh();
     });
