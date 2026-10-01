@@ -26,8 +26,8 @@ export default async function DashboardLayout({
       />
 
       {/* Main Container with Sidebar */}
-      <div className="mx-auto flex w-full max-w-7xl flex-1">
-        <Sidebar roles={user.roles} />
+            <div className="mx-auto flex w-full max-w-7xl flex-1">
+        <Sidebar />
 
         <main className="flex-1 p-6 sm:p-8">
           <div className="mx-auto max-w-5xl">{children}</div>
