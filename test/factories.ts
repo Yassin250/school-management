@@ -111,7 +111,7 @@ export async function createAcademicYear(
       name,
       startDate: overrides.startDate ?? new Date("2026-09-01"),
       endDate: overrides.endDate ?? new Date("2027-06-30"),
-      isCurrent: overrides.isCurrent ?? true,
+      isCurrent: overrides.isCurrent ?? false,
     },
   });
 }
@@ -131,7 +131,7 @@ export async function createTerm(
       name,
       startDate: overrides.startDate ?? new Date("2026-09-01"),
       endDate: overrides.endDate ?? new Date("2026-12-15"),
-      isCurrent: overrides.isCurrent ?? true,
+      isCurrent: overrides.isCurrent ?? false,
     },
   });
 }
