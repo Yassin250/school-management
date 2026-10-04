@@ -138,6 +138,8 @@ export const NAV_SECTIONS: NavSection[] = [
   // Finance
   // ----------------------------------------------------------
     // ----------------------------------------------------------
+    // ----------------------------------------------------------
+     // ----------------------------------------------------------
   // Finance
   // ----------------------------------------------------------
   {
@@ -152,6 +154,12 @@ export const NAV_SECTIONS: NavSection[] = [
       {
         label: "Fee Structures",
         href: "/dashboard/admin/finance/fee-structures",
+        icon: "fileText",
+        requiredRoles: ["ACCOUNTANT", "SCHOOL_ADMIN"],
+      },
+      {
+        label: "Invoices",
+        href: "/dashboard/admin/finance/invoices",
         icon: "fileText",
         requiredRoles: ["ACCOUNTANT", "SCHOOL_ADMIN"],
       },

@@ -212,6 +212,7 @@ model Term {
   reportCards       ReportCard[]
   invoices          Invoice[]
   timetableVersions TimetableVersion[]
+  feeStructures     FeeStructure[]
 
   @@unique([academicYearId, name])
   @@index([isCurrent])
@@ -1017,6 +1018,7 @@ model FeeStructure {
   id               String   @id @default(cuid())
   name             String
   academicYearId   String
+  termId           String?
   educationLevelId String?
   tradeId          String?
   feeType          FeeType
@@ -1028,11 +1030,13 @@ model FeeStructure {
   updatedAt        DateTime @updatedAt
 
   academicYear   AcademicYear    @relation(fields: [academicYearId], references: [id])
+  term           Term?           @relation(fields: [termId], references: [id])
   educationLevel EducationLevel? @relation(fields: [educationLevelId], references: [id])
   trade          Trade?          @relation(fields: [tradeId], references: [id])
   invoiceItems   InvoiceItem[]
 
   @@index([academicYearId, isActive])
+  @@index([academicYearId, termId])
   @@index([educationLevelId])
   @@index([tradeId])
   @@map("fee_structures")
