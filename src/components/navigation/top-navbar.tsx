@@ -2,6 +2,7 @@ import Link from "next/link";
 import { logoutAction } from "@/app/login/actions";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Badge } from "@/components/ui/badge";
+import { getRoleLabel } from "@/lib/navigation/roles";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 
@@ -44,7 +45,7 @@ export function TopNavbar({ user }: TopNavbarProps) {
 
         {/* User profile, theme toggle & controls */}
         <div className="flex items-center gap-3">
-          {/* Role badges */}
+          {/* Role badges — friendly display names */}
           <div className="hidden sm:flex items-center gap-1.5">
             {user.roles.map((role) => (
               <Badge
@@ -52,7 +53,7 @@ export function TopNavbar({ user }: TopNavbarProps) {
                 variant="secondary"
                 className="text-[11px] font-medium"
               >
-                {role.replace(/_/g, " ")}
+                {getRoleLabel(role)}
               </Badge>
             ))}
           </div>

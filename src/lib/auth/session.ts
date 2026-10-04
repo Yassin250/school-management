@@ -7,10 +7,6 @@ import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { UnauthenticatedError } from "@/lib/errors";
 
-// ------------------------------------------------------------
-// Full user shape returned by getCurrentUser()
-// ------------------------------------------------------------
-
 export interface CurrentUser {
   id: string;
   email: string;
@@ -19,19 +15,11 @@ export interface CurrentUser {
   mustChangePassword: boolean;
   roles: string[];
   permissions: Set<string>;
-  // Profile ids for scope checks
   studentId: string | null;
   parentId: string | null;
   teacherId: string | null;
   staffProfileId: string | null;
 }
-
-// ------------------------------------------------------------
-// Loads the current user (cached per request)
-// ------------------------------------------------------------
-// `@/auth` is dynamically imported INSIDE the function so that
-// simply importing this module (e.g. from can.ts during tests)
-// does NOT pull in next-auth.
 
 export const getCurrentUser = cache(
   async (): Promise<CurrentUser | null> => {
@@ -64,10 +52,8 @@ export const getCurrentUser = cache(
     if (user.status !== "ACTIVE") return null;
     if (user.deletedAt) return null;
 
-    // Collect role keys
     const roles = user.roles.map((ur) => ur.role.key);
 
-    // Collect unique permission keys
     const permissionSet = new Set<string>();
     for (const ur of user.roles) {
       for (const rp of ur.role.permissions) {
@@ -90,10 +76,6 @@ export const getCurrentUser = cache(
     };
   },
 );
-
-// ------------------------------------------------------------
-// Same as getCurrentUser but throws if not authenticated
-// ------------------------------------------------------------
 
 export async function requireCurrentUser(): Promise<CurrentUser> {
   const user = await getCurrentUser();

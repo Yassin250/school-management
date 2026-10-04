@@ -1,23 +1,19 @@
 // ============================================================
 // Navigation Configuration
 // ============================================================
-// Every nav item declares the permission required to see it.
-// The sidebar renders items where canForUser() returns true.
+// Each nav item declares:
+//   - requiredRoles: which roles see it (at least one)
+//   - requiredPermission: optional permission check
 //
-// This is NOT security. It's UX. The server enforces the real
-// permission on every page and action.
+// An item is visible if BOTH are satisfied.
+// This is UX only. The server enforces the real permission.
 // ============================================================
 
 import type { Permission } from "@/lib/permissions/constants";
 
-// ------------------------------------------------------------
-// Types
-// ------------------------------------------------------------
-
 export interface NavItem {
   label: string;
   href: string;
-  /** Optional icon name — used by the sidebar component. */
   icon:
     | "dashboard"
     | "users"
@@ -27,12 +23,9 @@ export interface NavItem {
     | "clipboard"
     | "fileText"
     | "dollar"
-    | "megaphone"
-    | "shield"
-    | "settings"
     | "child";
-  /** Permission required to display this item. Null = always shown. */
-  requiredPermission: Permission | null;
+  requiredRoles: string[];
+  requiredPermission?: Permission;
 }
 
 export interface NavSection {
@@ -40,13 +33,9 @@ export interface NavSection {
   items: NavItem[];
 }
 
-// ------------------------------------------------------------
-// Nav sections
-// ------------------------------------------------------------
-
 export const NAV_SECTIONS: NavSection[] = [
   // ----------------------------------------------------------
-  // Common — visible to everyone
+  // Overview — everyone
   // ----------------------------------------------------------
   {
     label: "Overview",
@@ -55,13 +44,22 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Dashboard",
         href: "/dashboard",
         icon: "dashboard",
-        requiredPermission: null,
+        requiredRoles: [
+          "SYSTEM_ADMIN",
+          "SCHOOL_ADMIN",
+          "PRINCIPAL",
+          "TEACHER",
+          "ACCOUNTANT",
+          "REGISTRAR",
+          "PARENT",
+          "STUDENT",
+        ],
       },
     ],
   },
 
   // ----------------------------------------------------------
-  // Teacher workspace
+  // Teaching — teachers only
   // ----------------------------------------------------------
   {
     label: "Teaching",
@@ -70,25 +68,31 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "My Classes",
         href: "/dashboard/teacher",
         icon: "book",
-        requiredPermission: "teacher_assignments.read",
+        requiredRoles: ["TEACHER"],
       },
       {
         label: "Attendance",
         href: "/dashboard/teacher/attendance",
         icon: "clipboard",
-        requiredPermission: "attendance.create",
+        requiredRoles: ["TEACHER"],
       },
       {
         label: "Timetable",
         href: "/dashboard/timetable",
         icon: "calendar",
-        requiredPermission: "timetable.read",
+        requiredRoles: [
+          "TEACHER",
+          "PRINCIPAL",
+          "SCHOOL_ADMIN",
+          "SYSTEM_ADMIN",
+          "REGISTRAR",
+        ],
       },
     ],
   },
 
   // ----------------------------------------------------------
-  // Principal leadership
+  // Leadership — principal only
   // ----------------------------------------------------------
   {
     label: "Leadership",
@@ -97,7 +101,7 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Pending Reviews",
         href: "/dashboard/principal",
         icon: "fileText",
-        requiredPermission: "grades.review",
+        requiredRoles: ["PRINCIPAL"],
       },
     ],
   },
@@ -112,30 +116,28 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Students",
         href: "/dashboard/admin/students",
         icon: "users",
-        requiredPermission: "students.create",
+        requiredRoles: ["SCHOOL_ADMIN", "REGISTRAR", "SYSTEM_ADMIN"],
       },
       {
         label: "Teachers",
         href: "/dashboard/admin/teachers",
         icon: "userCheck",
-        requiredPermission: "teachers.create",
+        requiredRoles: ["SCHOOL_ADMIN", "SYSTEM_ADMIN"],
       },
       {
         label: "Report Cards",
         href: "/dashboard/admin/reports",
         icon: "fileText",
-        requiredPermission: "report_cards.generate",
-      },
-      {
-        label: "System Settings",
-        href: "/dashboard/admin",
-        icon: "settings",
-        requiredPermission: "system.read",
+        requiredRoles: ["SCHOOL_ADMIN", "PRINCIPAL", "REGISTRAR"],
       },
     ],
   },
 
   // ----------------------------------------------------------
+    // ----------------------------------------------------------
+  // Finance
+  // ----------------------------------------------------------
+    // ----------------------------------------------------------
   // Finance
   // ----------------------------------------------------------
   {
@@ -145,13 +147,19 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "Overview",
         href: "/dashboard/accountant",
         icon: "dollar",
-        requiredPermission: "financial_reports.read",
+        requiredRoles: ["ACCOUNTANT", "SCHOOL_ADMIN"],
+      },
+      {
+        label: "Fee Structures",
+        href: "/dashboard/admin/finance/fee-structures",
+        icon: "fileText",
+        requiredRoles: ["ACCOUNTANT", "SCHOOL_ADMIN"],
       },
     ],
   },
 
   // ----------------------------------------------------------
-  // Parent portal
+  // Family — parents only
   // ----------------------------------------------------------
   {
     label: "Family",
@@ -160,13 +168,13 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "My Children",
         href: "/dashboard/parent",
         icon: "child",
-        requiredPermission: "parents.read",
+        requiredRoles: ["PARENT"],
       },
     ],
   },
 
   // ----------------------------------------------------------
-  // Student portal
+  // My Learning — students only
   // ----------------------------------------------------------
   {
     label: "My Learning",
@@ -175,13 +183,13 @@ export const NAV_SECTIONS: NavSection[] = [
         label: "My Grades",
         href: "/dashboard/student",
         icon: "book",
-        requiredPermission: "grades.read",
+        requiredRoles: ["STUDENT"],
       },
       {
         label: "My Timetable",
         href: "/dashboard/timetable",
         icon: "calendar",
-        requiredPermission: "timetable.read",
+        requiredRoles: ["STUDENT"],
       },
     ],
   },

@@ -8,16 +8,6 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 
-// ------------------------------------------------------------
-// Type augmentation
-// ------------------------------------------------------------
-
-
-
-// ------------------------------------------------------------
-// NextAuth config
-// ------------------------------------------------------------
-
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: {
     strategy: "jwt",
@@ -55,13 +45,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         );
         if (!passwordMatches) return null;
 
-        // Update last login
         await prisma.user.update({
           where: { id: user.id },
           data: { lastLoginAt: new Date() },
         });
 
-        // Fetch the user's primary role (temporary bridge until full RBAC)
         const primaryRole = await prisma.userRole.findFirst({
           where: { userId: user.id },
           include: { role: true },

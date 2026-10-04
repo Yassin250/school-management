@@ -6,16 +6,31 @@ import { NavIcon } from "./nav-icon";
 
 export async function Sidebar() {
   const user = await requireCurrentUser();
+  const userRoles = user.roles;
 
+  // Determine which items are visible:
+  //   1. User must have one of the item's requiredRoles
+  //   2. If requiredPermission is set, user must have it too
   const visibleSections = await Promise.all(
     NAV_SECTIONS.map(async (section) => {
       const visibleItems = await Promise.all(
         section.items.map(async (item) => {
-          if (!item.requiredPermission) {
-            return { item, visible: true };
+          const roleMatch = item.requiredRoles.some((r) =>
+            userRoles.includes(r),
+          );
+          if (!roleMatch) {
+            return { item, visible: false };
           }
-          const visible = await canForUser(user, item.requiredPermission);
-          return { item, visible };
+
+          if (item.requiredPermission) {
+            const permMatch = await canForUser(
+              user,
+              item.requiredPermission,
+            );
+            return { item, visible: permMatch };
+          }
+
+          return { item, visible: true };
         }),
       );
 
@@ -27,6 +42,8 @@ export async function Sidebar() {
   );
 
   const sections = visibleSections.filter((s) => s.items.length > 0);
+
+  if (sections.length === 0) return null;
 
   return (
     <aside className="hidden w-64 shrink-0 border-r border-neutral-200 bg-white md:block">
