@@ -10,9 +10,11 @@ import {
   createAcademicYear,
   createClass,
   createStudent,
+  createTeacher,
+  createTeacherAssignment,
+  createEnrollment,
 } from "../factories";
 import { ROLES } from "../../src/lib/permissions/constants";
-import { canForUser } from "../../src/lib/permissions/can";
 import type { CurrentUser } from "../../src/lib/auth/session";
 import {
   createStudent as createStudentService,
@@ -267,10 +269,47 @@ describe("listStudents", () => {
     expect(result.total).toBe(0);
   });
 
-  it("TEST-AS11: teacher cannot list students (no permission)", async () => {
-    const { user } = await createUser(ROLES.TEACHER);
-    const actor = await buildCurrentUser(user.id);
+  it("TEST-AS11: teacher sees only students in their assigned classes", async () => {
+    const { user: teacherUser } = await createUser(ROLES.TEACHER);
 
-    await expect(listStudents(actor)).rejects.toThrow(ForbiddenError);
+    const level = await createEducationLevel("P2", { order: 2 });
+    const year = await createAcademicYear("AY-AS11");
+    const classA = await createClass(year.id, level.id, { name: "P2 A - AS11" });
+    const classB = await createClass(year.id, level.id, { name: "P2 B - AS11" });
+
+    // Create teacher profile BEFORE building actor (so teacherId is populated)
+    const teacher = await createTeacher(teacherUser.id);
+    await createTeacherAssignment(teacher.id, classA.id, year.id);
+    const actor = await buildCurrentUser(teacherUser.id);
+
+    // Create students in both classes
+    const s1 = await createStudent({ studentCode: "STU-AS11-A1" });
+    const s2 = await createStudent({ studentCode: "STU-AS11-B1" });
+
+    await createEnrollment(s1.id, year.id, classA.id, level.id);
+    await createEnrollment(s2.id, year.id, classB.id, level.id);
+
+    const result = await listStudents(actor);
+
+    // Teacher should only see s1 (in classA)
+    expect(result.total).toBe(1);
+    expect(result.students[0].studentCode).toBe("STU-AS11-A1");
+  });
+
+  it("TEST-AS11b: teacher with no assignments sees empty list", async () => {
+    const { user: teacherUser } = await createUser(ROLES.TEACHER);
+    // Create teacher profile BEFORE building actor
+    await createTeacher(teacherUser.id);
+    const actor = await buildCurrentUser(teacherUser.id);
+
+    const level = await createEducationLevel("P3", { order: 3 });
+    const year = await createAcademicYear("AY-AS11b");
+    const cls = await createClass(year.id, level.id, { name: "P3 A - AS11b" });
+
+    const s = await createStudent({ studentCode: "STU-AS11b-1" });
+    await createEnrollment(s.id, year.id, cls.id, level.id);
+
+    const result = await listStudents(actor);
+    expect(result.total).toBe(0);
   });
 });

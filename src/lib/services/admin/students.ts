@@ -87,6 +87,42 @@ export async function listStudents(
     };
   }
 
+  // ----- Role-based scoping -----
+  const isAdmin = actor.roles.some((r) =>
+    ["SYSTEM_ADMIN", "SCHOOL_ADMIN", "PRINCIPAL", "REGISTRAR", "ACCOUNTANT"].includes(r),
+  );
+
+  if (!isAdmin) {
+    // TEACHER: see only students enrolled in classes the teacher is assigned to
+    if (actor.teacherId) {
+      const assignments = await prisma.teacherAssignment.findMany({
+        where: { teacherId: actor.teacherId },
+        select: { classId: true },
+      });
+      const assignedClassIds = assignments.map((a) => a.classId);
+
+      where.enrollments = {
+        some: {
+          classId: { in: assignedClassIds },
+          status: "ACTIVE",
+          ...(classId ? { classId } : {}),
+        },
+      };
+    }
+    // PARENT: see only linked children
+    else if (actor.parentId) {
+      const links = await prisma.parentStudent.findMany({
+        where: { parentId: actor.parentId },
+        select: { studentId: true },
+      });
+      where.id = { in: links.map((l) => l.studentId) };
+    }
+    // STUDENT: see only self
+    else if (actor.studentId) {
+      where.id = actor.studentId;
+    }
+  }
+
   const [students, total] = await Promise.all([
     prisma.student.findMany({
       where,

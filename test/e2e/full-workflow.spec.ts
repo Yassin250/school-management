@@ -10,7 +10,7 @@
 // All in a real browser via Playwright.
 // ============================================================
 
-import { test, expect, type Page, type Locator } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 
 // ------------------------------------------------------------
 // Constants
@@ -217,7 +217,6 @@ test.describe("4. Admin generates and publishes report cards", () => {
     await expect(aliceRow).toBeVisible({ timeout: 5000 });
 
     // Read current status from the row
-    const rowText = (await aliceRow.textContent()) ?? "";
 
     // Step 1: Generate — only if we see the exact button "Generate"
     // (not "Regenerate")
