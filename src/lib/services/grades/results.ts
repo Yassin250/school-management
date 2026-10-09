@@ -209,6 +209,19 @@ export async function enterResultsBulk(input: BulkEnterResultInput) {
 
   return prisma.$transaction(async (tx) => {
     const saved: Awaited<ReturnType<typeof tx.assessmentResult.create>>[] = [];
+    const changes: Array<{
+      studentId: string;
+      previous: {
+        score: string | null;
+        isAbsent: boolean;
+        note: string | null;
+      } | null;
+      current: {
+        score: string | null;
+        isAbsent: boolean;
+        note: string | null;
+      };
+    }> = [];
 
     for (const r of results) {
       const prior = existingByStudent.get(r.studentId);
@@ -235,21 +248,51 @@ export async function enterResultsBulk(input: BulkEnterResultInput) {
             },
           });
 
+      const current = {
+        score: result.score?.toString() ?? null,
+        isAbsent: result.isAbsent,
+        note: result.note,
+      };
+
+      // Record every result that was created or actually changed, so a
+      // re-submitted identical sheet does not fabricate audit noise but
+      // a real mark change always leaves a before/after trail.
+      const previous = prior
+        ? {
+            score: prior.score?.toString() ?? null,
+            isAbsent: prior.isAbsent,
+            note: prior.note,
+          }
+        : null;
+
+      const changed =
+        previous === null ||
+        previous.score !== current.score ||
+        previous.isAbsent !== current.isAbsent ||
+        previous.note !== current.note;
+
+      if (changed) {
+        changes.push({ studentId: r.studentId, previous, current });
+      }
+
       saved.push(result);
     }
 
-    await logAudit({
-      actorId: actor.id,
-      action: "GRADE_UPDATED",
-      entity: "Assessment",
-      entityId: assessmentId,
-      description: `Bulk update of ${results.length} result(s)`,
-      newValue: {
-        count: results.length,
-        studentIds,
-      },
-      tx,
-    });
+    if (changes.length > 0) {
+      await logAudit({
+        actorId: actor.id,
+        action: "GRADE_UPDATED",
+        entity: "Assessment",
+        entityId: assessmentId,
+        description: `Updated ${changes.length} of ${results.length} result(s)`,
+        newValue: {
+          count: changes.length,
+          submittedCount: results.length,
+          changes,
+        },
+        tx,
+      });
+    }
 
     return saved;
   });

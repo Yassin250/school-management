@@ -47,20 +47,22 @@ model User {
   deletedAt          DateTime?
 
   // Relations
-  roles               UserRole[]         @relation("UserRoleUser")
-  auditLogs           AuditLog[]         @relation("AuditActor")
-  notifications       Notification[]
-  filesUploaded       File[]             @relation("FileUploader")
-  approvedAssessments Assessment[]       @relation("AssessmentApprover")
-  reviewedAssessments Assessment[]       @relation("AssessmentReviewer")
-  returnedAssessments Assessment[]       @relation("AssessmentReturner")
-  lockedAssessments   Assessment[]       @relation("AssessmentLocker")
-  approvedReportCards ReportCard[]       @relation("ReportCardApprover")
-  recordedPayments    Payment[]          @relation("PaymentRecorder")
-  issuedReceipts      Receipt[]          @relation("ReceiptIssuer")
-  announcements       Announcement[]     @relation("AnnouncementAuthor")
-  approvedDiscounts   InvoiceDiscount[]  @relation("DiscountApprover")
-  enteredResults      AssessmentResult[] @relation("AssessmentResultEnteredBy")
+  roles                          UserRole[]             @relation("UserRoleUser")
+  auditLogs                      AuditLog[]             @relation("AuditActor")
+  notifications                  Notification[]
+  filesUploaded                  File[]                 @relation("FileUploader")
+  approvedAssessments            Assessment[]           @relation("AssessmentApprover")
+  reviewedAssessments            Assessment[]           @relation("AssessmentReviewer")
+  returnedAssessments            Assessment[]           @relation("AssessmentReturner")
+  lockedAssessments              Assessment[]           @relation("AssessmentLocker")
+  approvedReportCards            ReportCard[]           @relation("ReportCardApprover")
+  recordedPayments               Payment[]              @relation("PaymentRecorder")
+  issuedReceipts                 Receipt[]              @relation("ReceiptIssuer")
+  announcements                  Announcement[]         @relation("AnnouncementAuthor")
+  approvedDiscounts              InvoiceDiscount[]      @relation("DiscountApprover")
+  enteredResults                 AssessmentResult[]     @relation("AssessmentResultEnteredBy")
+  attendanceCorrectionsRequested AttendanceCorrection[] @relation("AttendanceCorrectionRequester")
+  attendanceCorrectionsReviewed  AttendanceCorrection[] @relation("AttendanceCorrectionReviewer")
 
   correctionRequestsRequested  GradeCorrectionRequest[] @relation("CorrectionRequester")
   correctionRequestsAuthorized GradeCorrectionRequest[] @relation("CorrectionAuthorizer")
@@ -190,6 +192,7 @@ model AcademicYear {
   scholarships       Scholarship[]
   timetableVersions  TimetableVersion[]
   holidays           Holiday[]
+  attendanceSessions AttendanceSession[]
 
   @@index([isCurrent])
   @@map("academic_years")
@@ -206,13 +209,14 @@ model Term {
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 
-  academicYear      AcademicYear       @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
-  lessons           Lesson[]
-  assessments       Assessment[]
-  reportCards       ReportCard[]
-  invoices          Invoice[]
-  timetableVersions TimetableVersion[]
-  feeStructures     FeeStructure[]
+  academicYear       AcademicYear        @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  lessons            Lesson[]
+  assessments        Assessment[]
+  reportCards        ReportCard[]
+  invoices           Invoice[]
+  timetableVersions  TimetableVersion[]
+  feeStructures      FeeStructure[]
+  attendanceSessions AttendanceSession[]
 
   @@unique([academicYearId, name])
   @@index([isCurrent])
@@ -392,6 +396,7 @@ model Class {
   announcements      Announcement[]
   assessments        Assessment[]
   reportCards        ReportCard[]
+  attendanceSessions AttendanceSession[]
 
   @@unique([academicYearId, name])
   @@index([academicYearId, educationLevelId])
@@ -552,13 +557,16 @@ model Teacher {
   updatedAt     DateTime    @updatedAt
   deletedAt     DateTime?
 
-  user              User                @relation(fields: [userId], references: [id])
-  photoFile         File?               @relation("TeacherPhoto", fields: [photoFileId], references: [id])
-  assignments       TeacherAssignment[]
-  classTeacherOf    Class[]             @relation("ClassTeacher")
-  assessments       Assessment[]
-  lessons           Lesson[]
-  attendancesMarked Attendance[]        @relation("AttendanceMarker")
+  user                        User                @relation(fields: [userId], references: [id])
+  photoFile                   File?               @relation("TeacherPhoto", fields: [photoFileId], references: [id])
+  assignments                 TeacherAssignment[]
+  classTeacherOf              Class[]             @relation("ClassTeacher")
+  assessments                 Assessment[]
+  lessons                     Lesson[]
+  attendancesMarked           Attendance[]        @relation("AttendanceMarker")
+  attendanceSessionsCreated   AttendanceSession[] @relation("AttendanceSessionCreator")
+  attendanceSessionsFinalized AttendanceSession[] @relation("AttendanceSessionFinalizer")
+  attendanceSessionsConducted AttendanceSession[] @relation("AttendanceSessionTeacher")
 
   @@index([status])
   @@index([deletedAt])
@@ -687,7 +695,8 @@ model Lesson {
   module           Module?          @relation(fields: [moduleId], references: [id])
   teacher          Teacher          @relation(fields: [teacherId], references: [id])
 
-  attendances Attendance[]
+  attendances        Attendance[]
+  attendanceSessions AttendanceSession[]
 
   @@index([timetableVersionId, dayOfWeek])
   @@index([classId, dayOfWeek, startTime])
@@ -706,24 +715,95 @@ enum AttendanceStatus {
   EXCUSED
 }
 
+enum AttendanceSessionStatus {
+  DRAFT
+  RECORDED
+  FINALIZED
+}
+
+enum AttendanceCorrectionStatus {
+  REQUESTED
+  APPROVED
+  REJECTED
+  APPLIED
+}
+
+model AttendanceSession {
+  id             String                  @id @default(cuid())
+  academicYearId String
+  termId         String
+  classId        String
+  lessonId       String
+  teacherId      String
+  sessionDate    DateTime
+  status         AttendanceSessionStatus @default(DRAFT)
+  createdById    String
+  finalizedAt    DateTime?
+  finalizedById  String?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  academicYear AcademicYear           @relation(fields: [academicYearId], references: [id])
+  term         Term                   @relation(fields: [termId], references: [id])
+  class        Class                  @relation(fields: [classId], references: [id])
+  lesson       Lesson                 @relation(fields: [lessonId], references: [id])
+  teacher      Teacher                @relation("AttendanceSessionTeacher", fields: [teacherId], references: [id])
+  createdBy    Teacher                @relation("AttendanceSessionCreator", fields: [createdById], references: [id])
+  finalizedBy  Teacher?               @relation("AttendanceSessionFinalizer", fields: [finalizedById], references: [id])
+  records      Attendance[]
+  corrections  AttendanceCorrection[]
+
+  @@unique([lessonId, sessionDate])
+  @@index([classId, sessionDate])
+  @@index([teacherId, sessionDate])
+  @@map("attendance_sessions")
+}
+
 model Attendance {
   id         String           @id @default(cuid())
   studentId  String
   lessonId   String
+  sessionId  String?
   status     AttendanceStatus
   note       String?
   markedById String
   markedAt   DateTime         @default(now())
   updatedAt  DateTime         @updatedAt
 
-  student  Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  lesson   Lesson  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  markedBy Teacher @relation("AttendanceMarker", fields: [markedById], references: [id])
+  student     Student                @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  lesson      Lesson                 @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  session     AttendanceSession?     @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  markedBy    Teacher                @relation("AttendanceMarker", fields: [markedById], references: [id])
+  corrections AttendanceCorrection[]
 
-  @@unique([studentId, lessonId])
+  @@unique([sessionId, studentId])
   @@index([lessonId])
   @@index([studentId])
   @@map("attendances")
+}
+
+model AttendanceCorrection {
+  id            String                     @id @default(cuid())
+  sessionId     String
+  attendanceId  String
+  requestedById String
+  reason        String
+  previousValue Json
+  proposedValue Json
+  status        AttendanceCorrectionStatus @default(REQUESTED)
+  reviewedById  String?
+  reviewedAt    DateTime?
+  appliedAt     DateTime?
+  createdAt     DateTime                   @default(now())
+
+  session     AttendanceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  attendance  Attendance        @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  requestedBy User              @relation("AttendanceCorrectionRequester", fields: [requestedById], references: [id])
+  reviewedBy  User?             @relation("AttendanceCorrectionReviewer", fields: [reviewedById], references: [id])
+
+  @@index([sessionId, status])
+  @@index([attendanceId])
+  @@map("attendance_corrections")
 }
 
 // ============================================================

@@ -133,6 +133,7 @@ export interface TransitionParams {
   transition: TransitionName;
   actor: CurrentUser;
   reason?: string;
+  description?: string;
   affectedStudentIds?: string[];
 }
 
@@ -142,6 +143,7 @@ export async function transitionAssessment(params: TransitionParams) {
     transition,
     actor,
     reason,
+    description,
     affectedStudentIds,
   } = params;
 
@@ -190,6 +192,7 @@ export async function transitionAssessment(params: TransitionParams) {
   // 4. Preconditions per transition
   await checkPreconditions(transition, assessment, {
     reason,
+    description,
     affectedStudentIds,
   });
 
@@ -225,7 +228,7 @@ export async function transitionAssessment(params: TransitionParams) {
             assessmentId: assessment.id,
             requestedById: actor.id,
             reason: reason!,
-            description: null,
+            description: description ?? null,
             affectedStudentIds: affectedStudentIds ?? [],
             status: "PENDING",
           },
@@ -296,6 +299,7 @@ export async function transitionAssessment(params: TransitionParams) {
       newValue: {
         status: def.to,
         ...(reason ? { reason } : {}),
+        ...(description ? { description } : {}),
         ...(affectedStudentIds ? { affectedStudentIds } : {}),
       },
       tx,
@@ -313,6 +317,7 @@ export async function transitionAssessment(params: TransitionParams) {
 
 interface PreconditionInput {
   reason?: string;
+  description?: string;
   affectedStudentIds?: string[];
 }
 
@@ -353,10 +358,64 @@ async function checkPreconditions(
         "At least one affected student must be specified for a correction request.",
       );
     }
+
+    // The design contract (docs/grade-workflow.md §10) requires a
+    // description alongside the reason: the reason states what is wrong,
+    // the description states what must change.
+    if (!input.description || input.description.trim().length < 5) {
+      throw new ValidationError(
+        `A description of at least 5 characters is required for ${transition}.`,
+      );
+    }
+
+    await verifyAffectedStudents(
+      assessment.classId,
+      input.affectedStudentIds,
+    );
   }
 
   if (transition === "SUBMIT") {
     await checkSubmissionReadiness(assessment);
+  }
+}
+
+// ============================================================
+// Correction request validation
+// ============================================================
+
+/**
+ * Every affected student must be actively enrolled in the assessment's
+ * own class. Naming a student from elsewhere would record a correction
+ * request against results that cannot exist, and would let a requester
+ * probe for students outside their scope.
+ */
+async function verifyAffectedStudents(
+  classId: string,
+  affectedStudentIds: string[],
+): Promise<void> {
+  const uniqueIds = [...new Set(affectedStudentIds)];
+
+  const enrollments = await prisma.enrollment.findMany({
+    where: {
+      classId,
+      status: "ACTIVE",
+      studentId: { in: uniqueIds },
+    },
+    select: { studentId: true },
+  });
+
+  const enrolled = new Set(enrollments.map((e) => e.studentId));
+  const invalid = uniqueIds.filter((id) => !enrolled.has(id));
+
+  if (invalid.length > 0) {
+    throw new ValidationError(
+      `${invalid.length} affected student(s) are not actively enrolled in ` +
+        `this assessment's class.`,
+      invalid.map((studentId) => ({
+        path: "affectedStudentIds",
+        message: `Student ${studentId} is not actively enrolled in class ${classId}.`,
+      })),
+    );
   }
 }
 
@@ -506,17 +565,24 @@ export async function reopenReturnedAssessment(
   });
 }
 
-export async function requestCorrection(
-  assessmentId: string,
-  reason: string,
-  affectedStudentIds: string[],
-  actor: CurrentUser,
-) {
+export interface RequestCorrectionInput {
+  assessmentId: string;
+  reason: string;
+  description: string;
+  affectedStudentIds: string[];
+  actor: CurrentUser;
+}
+
+export async function requestCorrection(input: RequestCorrectionInput) {
+  const { assessmentId, reason, description, affectedStudentIds, actor } =
+    input;
+
   return transitionAssessment({
     assessmentId,
     transition: "REQUEST_CORRECTION",
     actor,
     reason,
+    description,
     affectedStudentIds,
   });
 }
@@ -556,17 +622,26 @@ export async function lockAssessment(
   });
 }
 
+export interface RequestPostLockCorrectionInput {
+  assessmentId: string;
+  reason: string;
+  description: string;
+  affectedStudentIds: string[];
+  actor: CurrentUser;
+}
+
 export async function requestPostLockCorrection(
-  assessmentId: string,
-  reason: string,
-  affectedStudentIds: string[],
-  actor: CurrentUser,
+  input: RequestPostLockCorrectionInput,
 ) {
+  const { assessmentId, reason, description, affectedStudentIds, actor } =
+    input;
+
   return transitionAssessment({
     assessmentId,
     transition: "REQUEST_POST_LOCK_CORRECTION",
     actor,
     reason,
+    description,
     affectedStudentIds,
   });
 }

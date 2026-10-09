@@ -5,6 +5,11 @@ import { Badge } from "@/components/ui/badge";
 import { getRoleLabel } from "@/lib/navigation/roles";
 import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
+import { NotificationBell } from "@/components/navigation/notification-bell";
+import {
+  listMyNotifications,
+  unreadNotificationCount,
+} from "@/lib/services/notifications/list";
 
 interface TopNavbarProps {
   user: {
@@ -14,7 +19,20 @@ interface TopNavbarProps {
   };
 }
 
-export function TopNavbar({ user }: TopNavbarProps) {
+export async function TopNavbar({ user }: TopNavbarProps) {
+  // Prefetch notifications server-side for instant badge on load
+  let initialUnreadCount = 0;
+  let initialNotifications: Awaited<ReturnType<typeof listMyNotifications>> = [];
+
+  try {
+    [initialNotifications, initialUnreadCount] = await Promise.all([
+      listMyNotifications(15),
+      unreadNotificationCount(),
+    ]);
+  } catch {
+    // Not logged in or DB not ready — bell renders with 0
+  }
+
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-card/90 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -57,6 +75,12 @@ export function TopNavbar({ user }: TopNavbarProps) {
               </Badge>
             ))}
           </div>
+
+          {/* Notification Bell */}
+          <NotificationBell
+            initialUnreadCount={initialUnreadCount}
+            initialNotifications={initialNotifications}
+          />
 
           <ThemeToggle />
 

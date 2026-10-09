@@ -50,16 +50,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           data: { lastLoginAt: new Date() },
         });
 
-        const primaryRole = await prisma.userRole.findFirst({
-          where: { userId: user.id },
-          include: { role: true },
-        });
-
         return {
           id: user.id,
           email: user.email,
           name: user.username,
-          role: primaryRole?.role.key ?? "STUDENT",
         };
       },
     }),
@@ -68,14 +62,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = user.role;
       }
       return token;
     },
     async session({ session, token }) {
       if (token.id && session.user) {
         session.user.id = String(token.id);
-        session.user.role = String(token.role ?? "STUDENT");
       }
       return session;
     },

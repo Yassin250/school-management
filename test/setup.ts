@@ -54,11 +54,14 @@ export async function resetDatabase() {
   await testPrisma.$transaction([
     testPrisma.auditLog.deleteMany(),
     testPrisma.gradeCorrectionRequest.deleteMany(),
+    testPrisma.gradeScaleItem.deleteMany(),
+    testPrisma.gradeScale.deleteMany(),
     testPrisma.reportCardItem.deleteMany(),
     testPrisma.reportCard.deleteMany(),
     testPrisma.assessmentResult.deleteMany(),
     testPrisma.assessment.deleteMany(),
     testPrisma.attendance.deleteMany(),
+    testPrisma.attendanceSession.deleteMany(),
     testPrisma.lesson.deleteMany(),
     testPrisma.timetableVersion.deleteMany(),
     testPrisma.teacherAssignment.deleteMany(),
@@ -123,11 +126,14 @@ export function applyMigrationsToTestDb() {
 export async function resetUserData() {
   await testPrisma.auditLog.deleteMany();
   await testPrisma.gradeCorrectionRequest.deleteMany();
+  await testPrisma.gradeScaleItem.deleteMany();
+  await testPrisma.gradeScale.deleteMany();
   await testPrisma.reportCardItem.deleteMany();
   await testPrisma.reportCard.deleteMany();
   await testPrisma.assessmentResult.deleteMany();
   await testPrisma.assessment.deleteMany();
   await testPrisma.attendance.deleteMany();
+  await testPrisma.attendanceSession.deleteMany();
   await testPrisma.lesson.deleteMany();
   await testPrisma.timetableVersion.deleteMany();
   await testPrisma.teacherAssignment.deleteMany();

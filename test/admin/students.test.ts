@@ -90,7 +90,7 @@ beforeEach(async () => {
 
 describe("createStudent", () => {
   it("TEST-AS01: registrar can create a student", async () => {
-    const { user } = await createUser(ROLES.REGISTRAR);
+    const { user } = await createUser(ROLES.SCHOOL_ADMIN);
     const actor = await buildCurrentUser(user.id);
 
     const student = await createStudentService(actor, {
@@ -121,7 +121,7 @@ describe("createStudent", () => {
   });
 
   it("TEST-AS03: rejects missing first name", async () => {
-    const { user } = await createUser(ROLES.REGISTRAR);
+    const { user } = await createUser(ROLES.SCHOOL_ADMIN);
     const actor = await buildCurrentUser(user.id);
 
     await expect(
@@ -135,7 +135,7 @@ describe("createStudent", () => {
   });
 
   it("TEST-AS04: rejects missing date of birth", async () => {
-    const { user } = await createUser(ROLES.REGISTRAR);
+    const { user } = await createUser(ROLES.SCHOOL_ADMIN);
     const actor = await buildCurrentUser(user.id);
 
     await expect(
@@ -149,7 +149,7 @@ describe("createStudent", () => {
   });
 
   it("TEST-AS05: rejects duplicate national ID", async () => {
-    const { user } = await createUser(ROLES.REGISTRAR);
+    const { user } = await createUser(ROLES.SCHOOL_ADMIN);
     const actor = await buildCurrentUser(user.id);
 
     await createStudentService(actor, {
@@ -172,7 +172,7 @@ describe("createStudent", () => {
   });
 
   it("TEST-AS06: writes an audit log on creation", async () => {
-    const { user } = await createUser(ROLES.REGISTRAR);
+    const { user } = await createUser(ROLES.SCHOOL_ADMIN);
     const actor = await buildCurrentUser(user.id);
 
     await createStudentService(actor, {
@@ -194,7 +194,7 @@ describe("createStudent", () => {
   });
 
   it("TEST-AS07: creates an enrollment when class and year provided", async () => {
-    const { user } = await createUser(ROLES.REGISTRAR);
+    const { user } = await createUser(ROLES.SCHOOL_ADMIN);
     const actor = await buildCurrentUser(user.id);
 
     const level = await createEducationLevel("S1", { order: 7 });
@@ -220,7 +220,7 @@ describe("createStudent", () => {
   });
 
   it("TEST-AS08: rejects invalid class ID", async () => {
-    const { user } = await createUser(ROLES.REGISTRAR);
+    const { user } = await createUser(ROLES.SCHOOL_ADMIN);
     const actor = await buildCurrentUser(user.id);
 
     const year = await createAcademicYear("AY-AS08");
@@ -244,7 +244,7 @@ describe("createStudent", () => {
 
 describe("listStudents", () => {
   it("TEST-AS09: registrar can list students", async () => {
-    const { user } = await createUser(ROLES.REGISTRAR);
+    const { user } = await createUser(ROLES.SCHOOL_ADMIN);
     const actor = await buildCurrentUser(user.id);
 
     await createStudent({ studentCode: "STU-TEST-0001" });
@@ -256,7 +256,7 @@ describe("listStudents", () => {
   });
 
   it("TEST-AS10: list excludes soft-deleted students", async () => {
-    const { user } = await createUser(ROLES.REGISTRAR);
+    const { user } = await createUser(ROLES.SCHOOL_ADMIN);
     const actor = await buildCurrentUser(user.id);
 
     const s = await createStudent({ studentCode: "STU-TEST-DEL" });

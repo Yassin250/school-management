@@ -38,7 +38,6 @@ const DEMO_USERS: DemoUser[] = [
   { email: "principal@yourschool.rw", username: "principal", role: ROLES.PRINCIPAL, firstName: "Jane", lastName: "Principal" },
   { email: "teacher@yourschool.rw", username: "teacher", role: ROLES.TEACHER, firstName: "John", lastName: "Teacher" },
   { email: "accountant@yourschool.rw", username: "accountant", role: ROLES.ACCOUNTANT, firstName: "Anne", lastName: "Accountant" },
-  { email: "registrar@yourschool.rw", username: "registrar", role: ROLES.REGISTRAR, firstName: "Rita", lastName: "Registrar" },
   { email: "parent@yourschool.rw", username: "parent", role: ROLES.PARENT, firstName: "Paul", lastName: "Parent" },
   { email: "student@yourschool.rw", username: "student", role: ROLES.STUDENT, firstName: "Alice", lastName: "Student" },
 ];

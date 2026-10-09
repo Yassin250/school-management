@@ -33,6 +33,7 @@ import {
 import {
   ConflictError,
   ForbiddenError,
+  ValidationError,
 } from "../../src/lib/errors";
 
 // ------------------------------------------------------------
@@ -84,6 +85,72 @@ async function buildCurrentUser(userId: string): Promise<CurrentUser> {
 }
 
 // ------------------------------------------------------------
+// Grade scale helpers
+// ------------------------------------------------------------
+
+interface ScaleItemSpec {
+  minScore: number;
+  maxScore: number;
+  symbol: string;
+  points?: number;
+  isPass: boolean;
+  order: number;
+}
+
+/**
+ * Create a grade scale for an education area.
+ * Tests create exactly one active scale per area unless they are
+ * deliberately exercising the ambiguous-scale guard.
+ */
+async function seedGradeScale(
+  name: string,
+  area: "GENERAL" | "TVET",
+  items: ScaleItemSpec[],
+) {
+  const scale = await testPrisma.gradeScale.create({
+    data: {
+      name,
+      educationArea: area,
+      description: `Test scale: ${name}`,
+      isActive: true,
+      items: {
+        create: items.map((item) => ({
+          minScore: item.minScore,
+          maxScore: item.maxScore,
+          symbol: item.symbol,
+          points: item.points ?? null,
+          isPass: item.isPass,
+          order: item.order,
+        })),
+      },
+    },
+    include: { items: { orderBy: { order: "asc" } } },
+  });
+  return scale;
+}
+
+/** Standard A–F scale used by General Education. */
+function generalScaleItems(): ScaleItemSpec[] {
+  return [
+    { minScore: 80, maxScore: 100, symbol: "A", points: 4.0, isPass: true, order: 1 },
+    { minScore: 70, maxScore: 79.99, symbol: "B", points: 3.0, isPass: true, order: 2 },
+    { minScore: 60, maxScore: 69.99, symbol: "C", points: 2.0, isPass: true, order: 3 },
+    { minScore: 50, maxScore: 59.99, symbol: "D", points: 1.0, isPass: true, order: 4 },
+    { minScore: 0, maxScore: 49.99, symbol: "F", points: 0.0, isPass: false, order: 5 },
+  ];
+}
+
+/** Competency-based scale used by TVET. */
+function tvetScaleItems(): ScaleItemSpec[] {
+  return [
+    { minScore: 80, maxScore: 100, symbol: "C", points: 4.0, isPass: true, order: 1 },
+    { minScore: 60, maxScore: 79.99, symbol: "C+", points: 3.0, isPass: true, order: 2 },
+    { minScore: 50, maxScore: 59.99, symbol: "C-", points: 2.0, isPass: true, order: 3 },
+    { minScore: 0, maxScore: 49.99, symbol: "NYC", points: 0.0, isPass: false, order: 4 },
+  ];
+}
+
+// ------------------------------------------------------------
 // Fixture — student in a class with one approved assessment
 // ------------------------------------------------------------
 
@@ -97,10 +164,18 @@ interface Fixture {
   term: { id: string };
   cls: { id: string };
   subject: { id: string };
+  gradeScale: { id: string; name: string };
 }
 
-async function buildFixture(): Promise<Fixture> {
-  const level = await createEducationLevel("S1", { order: 7 });
+async function buildFixture(
+  options: { area?: "GENERAL" | "TVET"; levelCode?: string } = {},
+): Promise<Fixture> {
+  const area = options.area ?? "GENERAL";
+  const levelCode = options.levelCode ?? "S1";
+  const level = await createEducationLevel(levelCode, {
+    order: levelCode === "L3" ? 11 : 7,
+    area,
+  });
   const year = await createAcademicYear(`AY-${Date.now()}`);
   const term = await createTerm(year.id, `T-${Date.now()}`);
   const subject = await createSubject(`MATH-${Date.now()}`);
@@ -116,9 +191,17 @@ async function buildFixture(): Promise<Fixture> {
   const adminActor = await buildCurrentUser(aUser.id);
 
   const cls = await createClass(year.id, level.id, {
-    name: `S1A-${Date.now()}`,
+    name: `${levelCode}A-${Date.now()}`,
   });
   await createTeacherAssignment(teacher.id, cls.id, year.id, subject.id);
+
+  // Every fixture seeds exactly one active scale for its education area,
+  // mirroring the production requirement of a single configured scale.
+  const gradeScale = await seedGradeScale(
+    area === "TVET" ? "TVET Competency" : "General Standard",
+    area,
+    area === "TVET" ? tvetScaleItems() : generalScaleItems(),
+  );
 
   const { user: sUser } = await createUser(ROLES.STUDENT);
   const student = await createStudent({ userId: sUser.id });
@@ -134,6 +217,7 @@ async function buildFixture(): Promise<Fixture> {
     term: { id: term.id },
     cls: { id: cls.id },
     subject: { id: subject.id },
+    gradeScale: { id: gradeScale.id, name: gradeScale.name },
   };
 }
 
@@ -519,11 +603,12 @@ describe("Report card regeneration", () => {
     await approveReportCard(rc.id, f.principal.actor);
     await publishReportCard(rc.id, f.principal.actor);
 
-    await markReportCardForRegeneration(
-      f.student.id,
-      f.term.id,
-      "Assessment correction approved",
-    );
+    await markReportCardForRegeneration({
+      studentId: f.student.id,
+      termId: f.term.id,
+      reason: "Assessment correction approved",
+      actor: f.schoolAdmin.actor,
+    });
 
     const updated = await testPrisma.reportCard.findUnique({
       where: { id: rc.id },
@@ -545,11 +630,12 @@ describe("Report card regeneration", () => {
     });
     // rc.status is GENERATED, not APPROVED/PUBLISHED → no-op
 
-    await markReportCardForRegeneration(
-      f.student.id,
-      f.term.id,
-      "Should not apply",
-    );
+    await markReportCardForRegeneration({
+      studentId: f.student.id,
+      termId: f.term.id,
+      reason: "Should not apply",
+      actor: f.schoolAdmin.actor,
+    });
 
     const updated = await testPrisma.reportCard.findUnique({
       where: { id: rc.id },
@@ -563,7 +649,368 @@ describe("Report card regeneration", () => {
 
     // No report card generated yet
     await expect(
-      markReportCardForRegeneration(f.student.id, f.term.id, "Any reason"),
+      markReportCardForRegeneration({
+        studentId: f.student.id,
+        termId: f.term.id,
+        reason: "Any reason",
+        actor: f.schoolAdmin.actor,
+      }),
     ).resolves.toBeUndefined();
+  });
+});
+
+// ============================================================
+// 6. Grading scale selection
+// ============================================================
+
+describe("Grading scale selection", () => {
+  it("TEST-RC23: general education student receives general grades", async () => {
+    const f = await buildFixture();
+    await createAssessmentWithStatus(f, "APPROVED", 85);
+
+    const rc = await generateReportCard({
+      studentId: f.student.id,
+      termId: f.term.id,
+      actor: f.schoolAdmin.actor,
+    });
+
+    const items = await testPrisma.reportCardItem.findMany({
+      where: { reportCardId: rc.id },
+    });
+    expect(items[0].grade).toBe("A");
+  });
+
+  it("TEST-RC24: TVET student receives competency grades, not general letters", async () => {
+    const f = await buildFixture({ area: "TVET", levelCode: "L3" });
+    await createAssessmentWithStatus(f, "APPROVED", 85);
+
+    const rc = await generateReportCard({
+      studentId: f.student.id,
+      termId: f.term.id,
+      actor: f.schoolAdmin.actor,
+    });
+
+    const items = await testPrisma.reportCardItem.findMany({
+      where: { reportCardId: rc.id },
+    });
+    // 85% on the TVET scale is "C" (Competent, Distinction), never "A".
+    expect(items[0].grade).toBe("C");
+
+    // The audit trail must name the scale that was actually applied.
+    const log = await testPrisma.auditLog.findFirst({
+      where: { action: "REPORT_CARD_GENERATED", entityId: rc.id },
+    });
+    expect((log?.newValue as { gradeScaleId: string }).gradeScaleId).toBe(
+      f.gradeScale.id,
+    );
+  });
+
+  it("TEST-RC25: TVET student below 50 receives NYC", async () => {
+    const f = await buildFixture({ area: "TVET", levelCode: "L3" });
+    await createAssessmentWithStatus(f, "APPROVED", 30);
+
+    const rc = await generateReportCard({
+      studentId: f.student.id,
+      termId: f.term.id,
+      actor: f.schoolAdmin.actor,
+    });
+
+    const items = await testPrisma.reportCardItem.findMany({
+      where: { reportCardId: rc.id },
+    });
+    expect(items[0].grade).toBe("NYC");
+  });
+
+  it("TEST-RC26: a general scale alone never leaks onto a TVET student", async () => {
+    const f = await buildFixture({ area: "TVET", levelCode: "L3" });
+
+    // Replace the fixture scale with a general one, leaving no TVET scale.
+    await testPrisma.gradeScale.updateMany({
+      where: { educationArea: "TVET" },
+      data: { isActive: false },
+    });
+    await seedGradeScale("General Standard", "GENERAL", generalScaleItems());
+
+    await createAssessmentWithStatus(f, "APPROVED", 85);
+
+    await expect(
+      generateReportCard({
+        studentId: f.student.id,
+        termId: f.term.id,
+        actor: f.schoolAdmin.actor,
+      }),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it("TEST-RC27: missing active scale for the area fails safely", async () => {
+    const f = await buildFixture();
+    await testPrisma.gradeScale.updateMany({
+      where: { educationArea: "GENERAL" },
+      data: { isActive: false },
+    });
+    await createAssessmentWithStatus(f, "APPROVED", 85);
+
+    await expect(
+      generateReportCard({
+        studentId: f.student.id,
+        termId: f.term.id,
+        actor: f.schoolAdmin.actor,
+      }),
+    ).rejects.toThrow(ValidationError);
+
+    const cards = await testPrisma.reportCard.findMany({
+      where: { studentId: f.student.id },
+    });
+    expect(cards).toHaveLength(0);
+  });
+
+  it("TEST-RC28: ambiguous active scales fail instead of guessing", async () => {
+    const f = await buildFixture();
+    await seedGradeScale("Second General Scale", "GENERAL", generalScaleItems());
+    await createAssessmentWithStatus(f, "APPROVED", 85);
+
+    await expect(
+      generateReportCard({
+        studentId: f.student.id,
+        termId: f.term.id,
+        actor: f.schoolAdmin.actor,
+      }),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it("TEST-RC29: archived scales are ignored", async () => {
+    const f = await buildFixture();
+    await testPrisma.gradeScale.updateMany({
+      where: { educationArea: "GENERAL" },
+      data: { isActive: false },
+    });
+    await seedGradeScale("Archived General", "GENERAL", generalScaleItems());
+    await createAssessmentWithStatus(f, "APPROVED", 85);
+
+    // Only the inactive "General Standard" and the active "Archived General"
+    // exist; the fixture's original scale is inactive, so exactly one active
+    // scale remains and generation succeeds.
+    const rc = await generateReportCard({
+      studentId: f.student.id,
+      termId: f.term.id,
+      actor: f.schoolAdmin.actor,
+    });
+    expect(rc.status).toBe("GENERATED");
+  });
+});
+
+// ============================================================
+// 7. Reference code stability
+// ============================================================
+
+describe("Reference code stability", () => {
+  it("TEST-RC30: regeneration preserves the reference code", async () => {
+    const f = await buildFixture();
+    await createAssessmentWithStatus(f, "APPROVED", 80);
+
+    const rc = await generateReportCard({
+      studentId: f.student.id,
+      termId: f.term.id,
+      actor: f.schoolAdmin.actor,
+    });
+    expect(rc.referenceCode).toBeTruthy();
+    const original = rc.referenceCode;
+
+    await testPrisma.assessmentResult.updateMany({
+      where: { studentId: f.student.id },
+      data: { score: 95 },
+    });
+
+    const rc2 = await generateReportCard({
+      studentId: f.student.id,
+      termId: f.term.id,
+      actor: f.schoolAdmin.actor,
+    });
+
+    expect(rc2.id).toBe(rc.id);
+    expect(rc2.referenceCode).toBe(original);
+    expect(rc2.averageScore?.toString()).toBe("95");
+  });
+
+  it("TEST-RC31: repeated generation keeps the same reference code", async () => {
+    const f = await buildFixture();
+    await createAssessmentWithStatus(f, "APPROVED", 80);
+
+    const codes = new Set<string>();
+    for (let i = 0; i < 3; i++) {
+      const rc = await generateReportCard({
+        studentId: f.student.id,
+        termId: f.term.id,
+        actor: f.schoolAdmin.actor,
+      });
+      expect(rc.referenceCode).toBeTruthy();
+      codes.add(rc.referenceCode!);
+    }
+
+    expect(codes.size).toBe(1);
+  });
+
+  it("TEST-RC32: a manually cleared reference code is re-minted once", async () => {
+    const f = await buildFixture();
+    await createAssessmentWithStatus(f, "APPROVED", 80);
+
+    const rc = await generateReportCard({
+      studentId: f.student.id,
+      termId: f.term.id,
+      actor: f.schoolAdmin.actor,
+    });
+
+    // Simulate a legacy row with no code yet.
+    await testPrisma.reportCard.update({
+      where: { id: rc.id },
+      data: { referenceCode: null },
+    });
+
+    const rc2 = await generateReportCard({
+      studentId: f.student.id,
+      termId: f.term.id,
+      actor: f.schoolAdmin.actor,
+    });
+
+    expect(rc2.referenceCode).toBeTruthy();
+    expect(rc2.referenceCode).toMatch(/^RC-/);
+  });
+
+  it("TEST-RC33: reference codes stay unique across students", async () => {
+    const f = await buildFixture();
+    await createAssessmentWithStatus(f, "APPROVED", 80);
+
+    const { user: s2User } = await createUser(ROLES.STUDENT);
+    const student2 = await createStudent({ userId: s2User.id });
+    await createEnrollment(student2.id, f.year.id, f.cls.id, f.level.id);
+
+    await createAssessmentResult(
+      (await testPrisma.assessment.findFirst({
+        where: { classId: f.cls.id },
+      }))!.id,
+      student2.id,
+      f.teacher.actor.id,
+      { score: 70 },
+    );
+
+    const rc1 = await generateReportCard({
+      studentId: f.student.id,
+      termId: f.term.id,
+      actor: f.schoolAdmin.actor,
+    });
+    const rc2 = await generateReportCard({
+      studentId: student2.id,
+      termId: f.term.id,
+      actor: f.schoolAdmin.actor,
+    });
+
+    expect(rc1.referenceCode).not.toBe(rc2.referenceCode);
+  });
+});
+
+// ============================================================
+// 8. Regeneration flag authorization
+// ============================================================
+
+describe("Regeneration flag authorization", () => {
+  it("TEST-RC34: teacher cannot flag a report card for regeneration", async () => {
+    const f = await buildFixture();
+    await createAssessmentWithStatus(f, "APPROVED");
+
+    const rc = await generateReportCard({
+      studentId: f.student.id,
+      termId: f.term.id,
+      actor: f.schoolAdmin.actor,
+    });
+    await approveReportCard(rc.id, f.principal.actor);
+    await publishReportCard(rc.id, f.principal.actor);
+
+    await expect(
+      markReportCardForRegeneration({
+        studentId: f.student.id,
+        termId: f.term.id,
+        reason: "Teacher requested a change",
+        actor: f.teacher.actor,
+      }),
+    ).rejects.toThrow(ForbiddenError);
+
+    const updated = await testPrisma.reportCard.findUnique({
+      where: { id: rc.id },
+    });
+    expect(updated?.needsRegeneration).toBe(false);
+  });
+
+  it("TEST-RC35: principal lacks report_cards.regenerate", async () => {
+    const f = await buildFixture();
+    await createAssessmentWithStatus(f, "APPROVED");
+
+    const rc = await generateReportCard({
+      studentId: f.student.id,
+      termId: f.term.id,
+      actor: f.schoolAdmin.actor,
+    });
+    await approveReportCard(rc.id, f.principal.actor);
+    await publishReportCard(rc.id, f.principal.actor);
+
+    await expect(
+      markReportCardForRegeneration({
+        studentId: f.student.id,
+        termId: f.term.id,
+        reason: "Correction after publication",
+        actor: f.principal.actor,
+      }),
+    ).rejects.toThrow(ForbiddenError);
+  });
+
+  it("TEST-RC36: accountant cannot flag a report card for regeneration", async () => {
+    const f = await buildFixture();
+    await createAssessmentWithStatus(f, "APPROVED");
+
+    const rc = await generateReportCard({
+      studentId: f.student.id,
+      termId: f.term.id,
+      actor: f.schoolAdmin.actor,
+    });
+    await approveReportCard(rc.id, f.principal.actor);
+    await publishReportCard(rc.id, f.principal.actor);
+
+    const { user: accountantUser } = await createUser(ROLES.ACCOUNTANT);
+    const accountantActor = await buildCurrentUser(accountantUser.id);
+
+    await expect(
+      markReportCardForRegeneration({
+        studentId: f.student.id,
+        termId: f.term.id,
+        reason: "Finance requested a reissue",
+        actor: accountantActor,
+      }),
+    ).rejects.toThrow(ForbiddenError);
+
+    const updated = await testPrisma.reportCard.findUnique({
+      where: { id: rc.id },
+    });
+    expect(updated?.needsRegeneration).toBe(false);
+  });
+
+  it("TEST-RC37: an empty regeneration reason is rejected", async () => {
+    const f = await buildFixture();
+    await createAssessmentWithStatus(f, "APPROVED");
+
+    const rc = await generateReportCard({
+      studentId: f.student.id,
+      termId: f.term.id,
+      actor: f.schoolAdmin.actor,
+    });
+    await approveReportCard(rc.id, f.principal.actor);
+    await publishReportCard(rc.id, f.principal.actor);
+
+    await expect(
+      markReportCardForRegeneration({
+        studentId: f.student.id,
+        termId: f.term.id,
+        reason: "   ",
+        actor: f.schoolAdmin.actor,
+      }),
+    ).rejects.toThrow(ValidationError);
   });
 });

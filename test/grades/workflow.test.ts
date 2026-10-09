@@ -516,12 +516,13 @@ describe("Correction workflow", () => {
   it("TEST-W20: teacher can request correction of own approved assessment", async () => {
     const f = await buildApprovedAssessment();
 
-    const result = await requestCorrection(
-      f.assessment.id,
-      "Data-entry error on student1",
-      [f.student1.id],
-      f.teacher.actor,
-    );
+    const result = await requestCorrection({
+      assessmentId: f.assessment.id,
+      reason: "Data-entry error on student1",
+      description: "Score should be 88, was entered as 80",
+      affectedStudentIds: [f.student1.id],
+      actor: f.teacher.actor,
+    });
 
     expect(result.status).toBe("CORRECTION_PENDING");
 
@@ -536,24 +537,26 @@ describe("Correction workflow", () => {
   it("TEST-W21: correction request without affected students fails", async () => {
     const f = await buildApprovedAssessment();
     await expect(
-      requestCorrection(
-        f.assessment.id,
-        "Data-entry error",
-        [],
-        f.teacher.actor,
-      ),
+      requestCorrection({
+        assessmentId: f.assessment.id,
+        reason: "Data-entry error",
+        description: "Score should be 88",
+        affectedStudentIds: [],
+        actor: f.teacher.actor,
+      }),
     ).rejects.toThrow(ValidationError);
   });
 
   it("TEST-W22: principal can authorize a correction", async () => {
     const f = await buildApprovedAssessment();
 
-    await requestCorrection(
-      f.assessment.id,
-      "Data-entry error",
-      [f.student1.id],
-      f.teacher.actor,
-    );
+    await requestCorrection({
+      assessmentId: f.assessment.id,
+      reason: "Data-entry error",
+      description: "Score should be 88",
+      affectedStudentIds: [f.student1.id],
+      actor: f.teacher.actor,
+    });
 
     const result = await authorizeCorrection(
       f.assessment.id,
@@ -572,12 +575,13 @@ describe("Correction workflow", () => {
   it("TEST-W23: teacher cannot authorize their own correction request", async () => {
     const f = await buildApprovedAssessment();
 
-    await requestCorrection(
-      f.assessment.id,
-      "Data-entry error",
-      [f.student1.id],
-      f.teacher.actor,
-    );
+    await requestCorrection({
+      assessmentId: f.assessment.id,
+      reason: "Data-entry error",
+      description: "Score should be 88",
+      affectedStudentIds: [f.student1.id],
+      actor: f.teacher.actor,
+    });
 
     await expect(
       authorizeCorrection(f.assessment.id, f.teacher.actor),
@@ -587,12 +591,13 @@ describe("Correction workflow", () => {
   it("TEST-W24: principal can reject (cancel) a correction", async () => {
     const f = await buildApprovedAssessment();
 
-    await requestCorrection(
-      f.assessment.id,
-      "Data-entry error",
-      [f.student1.id],
-      f.teacher.actor,
-    );
+    await requestCorrection({
+      assessmentId: f.assessment.id,
+      reason: "Data-entry error",
+      description: "Score should be 88",
+      affectedStudentIds: [f.student1.id],
+      actor: f.teacher.actor,
+    });
 
     const result = await cancelCorrection(
       f.assessment.id,
@@ -615,22 +620,129 @@ describe("Correction workflow", () => {
 
     // Teacher cannot request post-lock
     await expect(
-      requestPostLockCorrection(
-        f.assessment.id,
-        "Administrative error",
-        [f.student1.id],
-        f.teacher.actor,
-      ),
+      requestPostLockCorrection({
+        assessmentId: f.assessment.id,
+        reason: "Administrative error",
+        description: "Score was duplicated across two students",
+        affectedStudentIds: [f.student1.id],
+        actor: f.teacher.actor,
+      }),
     ).rejects.toThrow(ForbiddenError);
 
     // Principal can
-    const result = await requestPostLockCorrection(
-      f.assessment.id,
-      "Administrative error",
-      [f.student1.id],
-      f.principal.actor,
-    );
+    const result = await requestPostLockCorrection({
+      assessmentId: f.assessment.id,
+      reason: "Administrative error",
+      description: "Score was duplicated across two students",
+      affectedStudentIds: [f.student1.id],
+      actor: f.principal.actor,
+    });
     expect(result.status).toBe("CORRECTION_PENDING");
+  });
+
+  it("TEST-W33: correction request stores the description", async () => {
+    const f = await buildApprovedAssessment();
+
+    await requestCorrection({
+      assessmentId: f.assessment.id,
+      reason: "Data-entry error on student1",
+      description: "Marking scheme changed: score should be 88",
+      affectedStudentIds: [f.student1.id],
+      actor: f.teacher.actor,
+    });
+
+    const correction = await testPrisma.gradeCorrectionRequest.findFirst({
+      where: { assessmentId: f.assessment.id },
+    });
+    expect(correction?.description).toBe(
+      "Marking scheme changed: score should be 88",
+    );
+    expect(correction?.reason).toBe("Data-entry error on student1");
+  });
+
+  it("TEST-W34: correction request without a description fails", async () => {
+    const f = await buildApprovedAssessment();
+
+    await expect(
+      requestCorrection({
+        assessmentId: f.assessment.id,
+        reason: "Data-entry error",
+        description: "",
+        affectedStudentIds: [f.student1.id],
+        actor: f.teacher.actor,
+      }),
+    ).rejects.toThrow(ValidationError);
+
+    const corrections = await testPrisma.gradeCorrectionRequest.findMany({
+      where: { assessmentId: f.assessment.id },
+    });
+    expect(corrections).toHaveLength(0);
+  });
+
+  it("TEST-W35: correction request rejects a student from another class", async () => {
+    const f = await buildApprovedAssessment();
+
+    // A student enrolled in a different class
+    const otherLevel = await createEducationLevel("S2", { order: 8 });
+    const otherClass = await createClass(f.year.id, otherLevel.id, {
+      name: `S2A-${Date.now()}`,
+    });
+    const { user: outsiderUser } = await createUser(ROLES.STUDENT);
+    const outsider = await createStudent({ userId: outsiderUser.id });
+    await createEnrollment(outsider.id, f.year.id, otherClass.id, otherLevel.id);
+
+    await expect(
+      requestCorrection({
+        assessmentId: f.assessment.id,
+        reason: "Data-entry error",
+        description: "Score should be 88",
+        affectedStudentIds: [outsider.id],
+        actor: f.teacher.actor,
+      }),
+    ).rejects.toThrow(ValidationError);
+
+    const corrections = await testPrisma.gradeCorrectionRequest.findMany({
+      where: { assessmentId: f.assessment.id },
+    });
+    expect(corrections).toHaveLength(0);
+  });
+
+  it("TEST-W36: correction request rejects a student with no enrollment", async () => {
+    const f = await buildApprovedAssessment();
+
+    const { user: ghostUser } = await createUser(ROLES.STUDENT);
+    const ghost = await createStudent({ userId: ghostUser.id });
+
+    await expect(
+      requestCorrection({
+        assessmentId: f.assessment.id,
+        reason: "Data-entry error",
+        description: "Score should be 88",
+        affectedStudentIds: [ghost.id],
+        actor: f.teacher.actor,
+      }),
+    ).rejects.toThrow(ValidationError);
+  });
+
+  it("TEST-W37: correction request accepts several enrolled students", async () => {
+    const f = await buildApprovedAssessment();
+
+    await requestCorrection({
+      assessmentId: f.assessment.id,
+      reason: "Transposed two marks",
+      description: "student1 and student2 scores were swapped",
+      affectedStudentIds: [f.student1.id, f.student2.id, f.student1.id],
+      actor: f.teacher.actor,
+    });
+
+    const correction = await testPrisma.gradeCorrectionRequest.findFirst({
+      where: { assessmentId: f.assessment.id },
+    });
+    expect(correction?.affectedStudentIds).toEqual([
+      f.student1.id,
+      f.student2.id,
+      f.student1.id,
+    ]);
   });
 });
 

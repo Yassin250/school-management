@@ -10,7 +10,6 @@ export const ROLE_LABELS: Record<string, string> = {
   PRINCIPAL: "Principal",
   TEACHER: "Teacher",
   ACCOUNTANT: "Accountant",
-  REGISTRAR: "Registrar",
   PARENT: "Parent",
   STUDENT: "Student",
 };

@@ -1,5 +1,5 @@
 // ============================================================
-// Student Management Service (Admin / Registrar)
+// Student Management Service (School Administration)
 // ============================================================
 
 import { Prisma } from "@prisma/client";
@@ -89,7 +89,7 @@ export async function listStudents(
 
   // ----- Role-based scoping -----
   const isAdmin = actor.roles.some((r) =>
-    ["SYSTEM_ADMIN", "SCHOOL_ADMIN", "PRINCIPAL", "REGISTRAR", "ACCOUNTANT"].includes(r),
+    ["SYSTEM_ADMIN", "SCHOOL_ADMIN", "PRINCIPAL", "ACCOUNTANT"].includes(r),
   );
 
   if (!isAdmin) {

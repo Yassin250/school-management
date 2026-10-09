@@ -23,7 +23,7 @@ import type { CurrentUser } from "@/lib/auth/session";
 /**
  * Is the user allowed to access this student's record?
  *
- * - SYSTEM_ADMIN, SCHOOL_ADMIN, PRINCIPAL, REGISTRAR: yes (school-wide)
+ * - SYSTEM_ADMIN, SCHOOL_ADMIN, PRINCIPAL: yes (school-wide)
  * - ACCOUNTANT: yes (financial context only - enforced at call site)
  * - TEACHER: only if the student is enrolled in a class the teacher teaches
  * - PARENT: only if the parent is linked to the student
@@ -38,7 +38,6 @@ export async function canAccessStudent(
     user.roles.includes("SYSTEM_ADMIN") ||
     user.roles.includes("SCHOOL_ADMIN") ||
     user.roles.includes("PRINCIPAL") ||
-    user.roles.includes("REGISTRAR") ||
     user.roles.includes("ACCOUNTANT")
   ) {
     return true;
@@ -113,7 +112,6 @@ export async function canAccessClass(
     user.roles.includes("SYSTEM_ADMIN") ||
     user.roles.includes("SCHOOL_ADMIN") ||
     user.roles.includes("PRINCIPAL") ||
-    user.roles.includes("REGISTRAR") ||
     user.roles.includes("ACCOUNTANT")
   ) {
     return true;
@@ -156,7 +154,6 @@ export async function canAccessClass(
  * Is the user allowed to access this assessment?
  *
  * - School-wide academic roles (SYSTEM_ADMIN, SCHOOL_ADMIN, PRINCIPAL): yes
- * - REGISTRAR: read-only (checked at call site via permission)
  * - TEACHER: only assessments they own, or for classes they teach
  * - PARENT/STUDENT: only if the assessment is for their child/self
  */
@@ -180,8 +177,7 @@ export async function canAccessAssessment(
   if (
     user.roles.includes("SYSTEM_ADMIN") ||
     user.roles.includes("SCHOOL_ADMIN") ||
-    user.roles.includes("PRINCIPAL") ||
-    user.roles.includes("REGISTRAR")
+    user.roles.includes("PRINCIPAL")
   ) {
     return true;
   }
@@ -247,8 +243,7 @@ export async function canAccessReportCard(
   if (
     user.roles.includes("SYSTEM_ADMIN") ||
     user.roles.includes("SCHOOL_ADMIN") ||
-    user.roles.includes("PRINCIPAL") ||
-    user.roles.includes("REGISTRAR")
+    user.roles.includes("PRINCIPAL")
   ) {
     return true;
   }
@@ -292,7 +287,6 @@ export async function canAccessReportCard(
  * Is the user allowed to access this invoice?
  *
  * - SYSTEM_ADMIN, SCHOOL_ADMIN, PRINCIPAL, ACCOUNTANT: yes
- * - REGISTRAR: read-only (checked at call site)
  * - PARENT: only their own children's invoices
  * - STUDENT: only their own
  * - TEACHER: no
@@ -312,8 +306,7 @@ export async function canAccessInvoice(
     user.roles.includes("SYSTEM_ADMIN") ||
     user.roles.includes("SCHOOL_ADMIN") ||
     user.roles.includes("PRINCIPAL") ||
-    user.roles.includes("ACCOUNTANT") ||
-    user.roles.includes("REGISTRAR")
+    user.roles.includes("ACCOUNTANT")
   ) {
     return true;
   }
@@ -355,8 +348,7 @@ export async function canAccessPayment(
     user.roles.includes("SYSTEM_ADMIN") ||
     user.roles.includes("SCHOOL_ADMIN") ||
     user.roles.includes("PRINCIPAL") ||
-    user.roles.includes("ACCOUNTANT") ||
-    user.roles.includes("REGISTRAR")
+    user.roles.includes("ACCOUNTANT")
   ) {
     return true;
   }
@@ -405,8 +397,7 @@ export async function canAccessAttendance(
   if (
     user.roles.includes("SYSTEM_ADMIN") ||
     user.roles.includes("SCHOOL_ADMIN") ||
-    user.roles.includes("PRINCIPAL") ||
-    user.roles.includes("REGISTRAR")
+    user.roles.includes("PRINCIPAL")
   ) {
     return true;
   }
@@ -499,7 +490,6 @@ export async function canAccessAnnouncement(
         user.roles.includes("SCHOOL_ADMIN") ||
         user.roles.includes("PRINCIPAL") ||
         user.roles.includes("ACCOUNTANT") ||
-        user.roles.includes("REGISTRAR") ||
         user.roles.includes("TEACHER")
       );
     default:

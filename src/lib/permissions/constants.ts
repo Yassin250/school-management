@@ -257,7 +257,6 @@ export const ROLES = {
   PRINCIPAL: "PRINCIPAL",
   TEACHER: "TEACHER",
   ACCOUNTANT: "ACCOUNTANT",
-  REGISTRAR: "REGISTRAR",
   PARENT: "PARENT",
   STUDENT: "STUDENT",
 } as const;
@@ -300,12 +299,6 @@ export const ROLE_METADATA: Record<
     name: "Accountant / Bursar",
     description:
       "Manages fees, invoices, payments, receipts, discounts, scholarships, and financial reports.",
-    isSystem: true,
-  },
-  [ROLES.REGISTRAR]: {
-    name: "Registrar / Secretary",
-    description:
-      "Manages student records, enrollment, class assignment, transfers, parent/guardian information, official student documents.",
     isSystem: true,
   },
   [ROLES.PARENT]: {

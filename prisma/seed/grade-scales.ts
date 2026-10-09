@@ -23,13 +23,21 @@ interface ScaleSeed {
   name: string;
   educationArea: EducationArea;
   description: string;
+  isActive: boolean;
   items: ScaleItemSeed[];
 }
 
 // ------------------------------------------------------------
 // Scales
 // ------------------------------------------------------------
-
+// Exactly ONE scale per education area may be active. Report-card
+// generation resolves the active scale by education area and fails
+// safely when the configuration is missing or ambiguous, so the
+// Primary and Secondary general-education scales — which carry
+// identical bands here — cannot both be active. "Secondary Standard"
+// is the active default; "Primary Standard" is kept as an
+// inactive alternative the school can activate after archiving the
+// other. Switching between them changes no grade.
 const SCALES: ScaleSeed[] = [
   // --------------------------------------------------------
   // Primary (P1–P6) — Rwandan primary grading
@@ -39,6 +47,7 @@ const SCALES: ScaleSeed[] = [
     educationArea: "GENERAL",
     description:
       "Standard grading scale for Primary (P1–P6). Configurable by school admin.",
+    isActive: false,
     items: [
       { minScore: 80, maxScore: 100, symbol: "A", description: "Excellent", points: 4.0, isPass: true, order: 1 },
       { minScore: 70, maxScore: 79.99, symbol: "B", description: "Very Good", points: 3.0, isPass: true, order: 2 },
@@ -49,13 +58,14 @@ const SCALES: ScaleSeed[] = [
   },
 
   // --------------------------------------------------------
-  // Secondary (S1–S6)
+  // Secondary (S1–S6) — the active general-education scale
   // --------------------------------------------------------
   {
     name: "Secondary Standard",
     educationArea: "GENERAL",
     description:
       "Standard grading scale for Secondary (S1–S6). Configurable by school admin.",
+    isActive: true,
     items: [
       { minScore: 80, maxScore: 100, symbol: "A", description: "Excellent", points: 4.0, isPass: true, order: 1 },
       { minScore: 70, maxScore: 79.99, symbol: "B", description: "Very Good", points: 3.0, isPass: true, order: 2 },
@@ -73,6 +83,7 @@ const SCALES: ScaleSeed[] = [
     educationArea: "TVET",
     description:
       "Competency-based grading for TVET (L3–L5). Marks reflect demonstrated competency.",
+    isActive: true,
     items: [
       { minScore: 80, maxScore: 100, symbol: "C", description: "Competent (Distinction)", points: 4.0, isPass: true, order: 1 },
       { minScore: 60, maxScore: 79.99, symbol: "C+", description: "Competent (Proficient)", points: 3.0, isPass: true, order: 2 },
@@ -108,7 +119,7 @@ export async function seedGradeScales(prisma: PrismaClient): Promise<void> {
         data: {
           educationArea: scale.educationArea,
           description: scale.description,
-          isActive: true,
+          isActive: scale.isActive,
         },
       });
       gradeScaleId = updated.id;
@@ -118,7 +129,7 @@ export async function seedGradeScales(prisma: PrismaClient): Promise<void> {
           name: scale.name,
           educationArea: scale.educationArea,
           description: scale.description,
-          isActive: true,
+          isActive: scale.isActive,
         },
       });
       gradeScaleId = created.id;

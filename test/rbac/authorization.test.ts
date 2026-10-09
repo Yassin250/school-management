@@ -278,6 +278,15 @@ describe("Principal authorization", () => {
     });
     expect(allowed).toBe(true);
   });
+
+  it("TEST-12a: principal cannot enter grades, create assessments, or edit the timetable", async () => {
+    const { user } = await createUser(ROLES.PRINCIPAL);
+    const currentUser = await buildCurrentUser(user.id);
+    await expect(canForUser(currentUser, PERMISSIONS.GRADES_ENTER)).resolves.toBe(false);
+    await expect(canForUser(currentUser, PERMISSIONS.GRADES_EDIT)).resolves.toBe(false);
+    await expect(canForUser(currentUser, PERMISSIONS.ASSESSMENTS_CREATE)).resolves.toBe(false);
+    await expect(canForUser(currentUser, PERMISSIONS.TIMETABLE_UPDATE)).resolves.toBe(false);
+  });
 });
 
 // ============================================================
@@ -333,17 +342,17 @@ describe("Accountant authorization", () => {
 // 5. Registrar
 // ============================================================
 
-describe("Registrar authorization", () => {
-  it("TEST-18: registrar can create students", async () => {
-    const { user } = await createUser(ROLES.REGISTRAR);
+describe("School Administrator authorization", () => {
+  it("TEST-18: school administrator can create students", async () => {
+    const { user } = await createUser(ROLES.SCHOOL_ADMIN);
     const currentUser = await buildCurrentUser(user.id);
 
     const allowed = await canForUser(currentUser, PERMISSIONS.STUDENTS_CREATE);
     expect(allowed).toBe(true);
   });
 
-  it("TEST-19: registrar can manage enrollments", async () => {
-    const { user } = await createUser(ROLES.REGISTRAR);
+  it("TEST-19: school administrator can manage enrollments", async () => {
+    const { user } = await createUser(ROLES.SCHOOL_ADMIN);
     const currentUser = await buildCurrentUser(user.id);
 
     const allowed = await canForUser(
@@ -353,12 +362,15 @@ describe("Registrar authorization", () => {
     expect(allowed).toBe(true);
   });
 
-  it("TEST-20: registrar cannot approve grades", async () => {
-    const { user } = await createUser(ROLES.REGISTRAR);
+  it("TEST-20: school administrator cannot approve grades or finance writes", async () => {
+    const { user } = await createUser(ROLES.SCHOOL_ADMIN);
     const currentUser = await buildCurrentUser(user.id);
 
     const allowed = await canForUser(currentUser, PERMISSIONS.GRADES_APPROVE);
     expect(allowed).toBe(false);
+    await expect(canForUser(currentUser, PERMISSIONS.FEE_STRUCTURES_CREATE)).resolves.toBe(false);
+    await expect(canForUser(currentUser, PERMISSIONS.INVOICES_CREATE)).resolves.toBe(false);
+    await expect(canForUser(currentUser, PERMISSIONS.PAYMENTS_CREATE)).resolves.toBe(false);
   });
 });
 

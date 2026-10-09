@@ -111,7 +111,7 @@ describe("createFeeStructure", () => {
     expect(created.isActive).toBe(true);
   });
 
-  it("TEST-FS02: school admin can create a fee structure for a trade (TVET)", async () => {
+  it("TEST-FS02: school admin cannot create a fee structure", async () => {
     const { user } = await createUser(ROLES.SCHOOL_ADMIN);
     const actor = await buildCurrentUser(user.id);
 
@@ -123,16 +123,13 @@ describe("createFeeStructure", () => {
       create: { code: "TEST_TRADE_FS02", name: "Test Trade FS02" },
     });
 
-    const created = await createFeeStructure(actor, {
+    await expect(createFeeStructure(actor, {
       name: "TVET Workshop Fee - Term 1",
       academicYearId: year.id,
       tradeId: trade.id,
       feeType: "TUITION",
       amount: 200000,
-    });
-
-    expect(created.tradeId).toBe(trade.id);
-    expect(created.educationLevelId).toBeNull();
+    })).rejects.toThrow(ForbiddenError);
   });
 
   it("TEST-FS03: teacher cannot create a fee structure", async () => {

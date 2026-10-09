@@ -4,12 +4,11 @@ import { getCurrentUser } from "@/lib/auth/session";
 // Map roles to their dashboard route.
 // This is NAVIGATION, not authorization.
 const ROLE_DASHBOARD: Record<string, string> = {
-  SYSTEM_ADMIN: "/dashboard/admin",
+  SYSTEM_ADMIN: "/dashboard/system",
   SCHOOL_ADMIN: "/dashboard/admin",
   PRINCIPAL: "/dashboard/principal",
   TEACHER: "/dashboard/teacher",
   ACCOUNTANT: "/dashboard/accountant",
-  REGISTRAR: "/dashboard/registrar",
   PARENT: "/dashboard/parent",
   STUDENT: "/dashboard/student",
 };
